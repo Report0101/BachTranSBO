@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ER Command Center</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">ER COMMAND CENTER</div>
+      <div class="shift-meta" id="shiftMeta"></div>
+    </div>
+    <div class="toolbar" id="topActions"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="nav-title">Workspace</div>
+      <button class="nav-item active">Patients <span>●</span></button>
+      <div class="nav-title">Future modules</div>
+      <button class="nav-item disabled">Analytics <span>PLANNED</span></button>
+      <button class="nav-item disabled">Archive <span>PLANNED</span></button>
+      <button class="nav-item disabled">Integrations <span>PLANNED</span></button>
+    </aside>
+
+    <main class="main">
+      <section id="noShiftView" class="empty hidden">
+        <div class="empty-card">
+          <h1>No active shift</h1>
+          <p>Mỗi thời điểm chỉ có một shift active.</p>
+          <button class="btn primary" id="startShiftBtn">START SHIFT</button>
+        </div>
+      </section>
+
+      <section id="patientsView" class="hidden">
+        <div class="grid2">
+          <div>
+            <div class="card">
+              <div class="card-h">
+                <div>
+                  <h3>Import new patient</h3>
+                  <div class="subtle">ID auto từ 01 trong mỗi shift.</div>
+                </div>
+              </div>
+              <div class="card-b">
+                <div class="inline3">
+                  <div class="field">
+                    <label>ID</label>
+                    <input id="newId" disabled />
+                  </div>
+                  <div class="field">
+                    <label>Sex</label>
+                    <select id="newSex">
+                      <option value="">—</option>
+                      <option>M</option>
+                      <option>F</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Year of birth</label>
+                    <input id="newYob" inputmode="numeric" placeholder="1959" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Main complaint</label>
+                  <input id="newComplaint" placeholder="Chest pain" />
+                </div>
+                <button class="btn primary" id="addPatientBtn">ADD PATIENT</button>
+              </div>
+            </div>
+
+            <div class="card mt16">
+              <div class="card-h">
+                <div>
+                  <h3>Patient record</h3>
+                  <div class="subtle">Status chỉ hiển thị các test đang WAITING FOR RESULT.</div>
+                </div>
+              </div>
+              <div class="card-b table-wrap">
+                <table class="patient-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Sex</th>
+                      <th>Age</th>
+                      <th>Main complaint</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="patientTbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div>
+                <h3 id="recordTitle">Patient detail</h3>
+                <div class="subtle" id="recordSubtitle">Chọn một bệnh nhân bên trái.</div>
+              </div>
+              <span id="patientStatusBadge"></span>
+            </div>
+            <div class="card-b">
+              <div id="noPatientSelected" class="subtle">No patient selected.</div>
+
+              <form id="patientForm" class="hidden" onsubmit="return false">
+                <div class="section">
+                  <div class="section-title">1. Clinical</div>
+                  <div class="field">
+                    <label>Main complaint</label>
+                    <input id="fMainComplaint" />
+                  </div>
+                  <div class="field">
+                    <label>Complaint</label>
+                    <textarea id="fComplaint" placeholder="Manual input or paste from clipboard..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Patient history</label>
+                    <textarea id="fHistory" placeholder="Manual input or paste from clipboard..."></textarea>
+                  </div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">2. Test results and status</div>
+                  <div class="info-bar">
+                    Default = <b>Waiting for result</b> (orange). Nhập kết quả rồi bấm
+                    <b>SAVE RESULT</b> → chuyển xanh <b>Result available</b>.
+                    Chọn <b>Not ordered</b> → grey.
+                  </div>
+
+                  <div class="field">
+                    <label>Physical examination — main points / status</label>
+                    <textarea id="fPhysical"></textarea>
+                  </div>
+
+                  <div class="test-group-toolbar">
+                    <div class="test-group-title">Lab</div>
+                    <button class="btn small" type="button" id="addLabBtn">+ ADD LAB</button>
+                  </div>
+                  <div id="labCards"></div>
+
+                  <div class="test-group-toolbar">
+                    <div class="test-group-title">EKG</div>
+                  </div>
+                  <div id="ekgCard"></div>
+
+                  <div class="test-group-toolbar">
+                    <div class="test-group-title">AVG / VVG</div>
+                  </div>
+                  <div id="gasCard"></div>
+
+                  <div class="test-group-toolbar">
+                    <div class="test-group-title">Radiology</div>
+                    <button class="btn small" type="button" id="addRadiologyBtn">+ ADD RADIOLOGY</button>
+                  </div>
+                  <div id="radiologyCards"></div>
+
+                  <div class="test-group-toolbar">
+                    <div class="test-group-title">Consultations</div>
+                    <button class="btn small" type="button" id="addConsultBtn">+ ADD CONSULTATION</button>
+                  </div>
+                  <div id="consultCards"></div>
+
+                  <div class="field">
+                    <label>Others</label>
+                    <textarea id="fOthers"></textarea>
+                  </div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">3. What happens</div>
+                  <div class="field">
+                    <label>Therapy</label>
+                    <textarea id="fTherapy"></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Clinical course / patient status change</label>
+                    <textarea id="fCourse"></textarea>
+                  </div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">4. Final decision / disposition</div>
+                  <div class="info-bar">
+                    Final chỉ là quyết định xử trí. Patient chưa completed cho đến khi Summary được Finalize.
+                  </div>
+                  <div class="field">
+                    <label>Disposition</label>
+                    <select id="fDisposition">
+                      <option value="">Active / in progress</option>
+                      <option value="discharged">Discharged</option>
+                      <option value="admitted">Admitted / submitted</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div id="dischargedFields" class="hidden">
+                    <div class="field">
+                      <label>Recommendation and plan at home</label>
+                      <div class="recs" id="recList"></div>
+                      <button class="btn small" id="addRecBtn" type="button">+ Add recommendation</button>
+                    </div>
+                  </div>
+
+                  <div id="admittedFields" class="hidden">
+                    <div class="inline">
+                      <div class="field">
+                        <label>Hospital</label>
+                        <input id="fHospital" />
+                      </div>
+                      <div class="field">
+                        <label>Ward / department</label>
+                        <input id="fWard" />
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label>Accepting physician</label>
+                      <input id="fPhysician" />
+                    </div>
+                    <div class="field">
+                      <label>Additional note</label>
+                      <textarea id="fAdmissionNote"></textarea>
+                    </div>
+                  </div>
+
+                  <div id="otherFields" class="hidden">
+                    <div class="field">
+                      <label>Outcome</label>
+                      <input id="fOtherOutcome" placeholder="Death, transfer, left against medical advice..." />
+                    </div>
+                    <div class="field">
+                      <label>Details</label>
+                      <textarea id="fOtherDetails"></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">5. Case summary</div>
+                  <div class="info-bar">
+                    <b>Generate Summary</b> sẽ dùng Summary Skill ở backend (cài sau).
+                    User có thể chỉnh sửa trước khi Finalize.
+                  </div>
+                  <div class="summary-actions">
+                    <button class="btn primary" id="generateSummaryBtn" type="button">✨ GENERATE SUMMARY</button>
+                  </div>
+                  <div class="summary-status" id="summaryStatus"></div>
+                  <div class="field">
+                    <label>Summary — editable</label>
+                    <textarea id="fSummary" class="summary-box" placeholder="Generated summary will appear here. You can edit it before Finalize."></textarea>
+                  </div>
+                  <div class="toolbar">
+                    <button class="btn success" id="finalizeSummaryBtn" type="button">FINALIZE SUMMARY</button>
+                  </div>
+                </div>
+
+                <div class="sticky-actions">
+                  <button class="btn" id="savePatientBtn" type="button">SAVE PATIENT</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalHost"></div>
+  <script src="app.js"></script>
+</body>
+</html>
