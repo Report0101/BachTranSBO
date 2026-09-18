@@ -1,0 +1,14 @@
+name = "bachtran-sbo-api"
+main = "worker.mjs"
+compatibility_date = "2026-09-19"
+workers_dev = true
+[vars]
+ALLOWED_ORIGIN = "https://report0101.github.io"
+# Set to a Responses API model enabled for your OpenAI project before deployment.
+OPENAI_MODEL = ""
+[[ratelimits]]
+name = "SBO_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+[observability]
+enabled = false
