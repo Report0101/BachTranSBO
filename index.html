@@ -26,6 +26,14 @@
     </aside>
 
     <main class="main">
+      <details class="card card-b">
+        <summary>AI connection</summary>
+        <p>Generate sends this case and up to five finalized summaries to the configured AI backend. Review all output before Finalize.</p>
+        <label for="appAccessToken">App access token — not your OpenAI API key</label>
+        <input id="appAccessToken" type="password" autocomplete="off" spellcheck="false" />
+        <button id="clearAccessTokenBtn" class="btn" type="button">Clear access token</button>
+        <p id="aiStatus" role="status" aria-live="polite"></p>
+      </details>
       <section id="noShiftView" class="empty hidden">
         <div class="empty-card">
           <h1>No active shift</h1>
@@ -172,6 +180,7 @@
 
                 <div class="section">
                   <div class="section-title">3. What happens</div>
+                  <div class="field"><label for="fDiagnoses">Diagnózisok — physician supplied</label><textarea id="fDiagnoses"></textarea></div>
                   <div class="field">
                     <label>Therapy</label>
                     <textarea id="fTherapy"></textarea>
@@ -185,7 +194,7 @@
                 <div class="section">
                   <div class="section-title">4. Final decision / disposition</div>
                   <div class="info-bar">
-                    Final chỉ là quyết định xử trí. Patient chưa completed cho đến khi Summary được Finalize.
+                    Final chỉ là quyết định xử trí. Finalize lưu mẫu văn phong; Close Case hoàn tất ca.
                   </div>
                   <div class="field">
                     <label>Disposition</label>
@@ -241,19 +250,22 @@
                 <div class="section">
                   <div class="section-title">5. Case summary</div>
                   <div class="info-bar">
-                    <b>Generate Summary</b> sẽ dùng Summary Skill ở backend (cài sau).
+                    <b>Generate SBO Summary</b> dùng AI qua backend bảo mật.
                     User có thể chỉnh sửa trước khi Finalize.
                   </div>
                   <div class="summary-actions">
-                    <button class="btn primary" id="generateSummaryBtn" type="button">✨ GENERATE SUMMARY</button>
+                    <button class="btn primary" id="generateSummaryBtn" type="button">✨ GENERATE SBO SUMMARY</button>
                   </div>
-                  <div class="summary-status" id="summaryStatus"></div>
+                  <div class="summary-status" id="summaryStatus"></div><p id="styleCount" class="subtle"></p>
                   <div class="field">
                     <label>Summary — editable</label>
                     <textarea id="fSummary" class="summary-box" placeholder="Generated summary will appear here. You can edit it before Finalize."></textarea>
                   </div>
                   <div class="toolbar">
                     <button class="btn success" id="finalizeSummaryBtn" type="button">FINALIZE SUMMARY</button>
+                    <button class="btn" id="undoFinalizeBtn" type="button">UNDO FINALIZE</button>
+                    <button class="btn" id="closeCaseBtn" type="button">CLOSE CASE</button>
+                    <button class="btn" id="reopenCaseBtn" type="button">REOPEN CASE</button>
                   </div>
                 </div>
 
@@ -269,6 +281,8 @@
   </div>
 
   <div id="modalHost"></div>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
+

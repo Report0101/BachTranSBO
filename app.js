@@ -53,7 +53,7 @@ function patientById(id) {
 }
 
 function isCompleted(patient) {
-  return Boolean(patient.summaryFinalizedAt);
+  return Boolean(patient.closedAt);
 }
 
 function newEntry(type = "") {
@@ -182,6 +182,9 @@ function renderPatients() {
 }
 
 function updateStatusCell(patient) {
+  if (patient.summaryFinalizedAt && patient.finalizedSnapshot !== JSON.stringify(clinicalPayload(patient))) {
+    invalidateFinalization(patient); persist(); renderSummaryStatus(patient);
+  }
   const cell = document.querySelector(`[data-status-cell="${patient.id}"]`);
   if (!cell) return;
 
@@ -272,6 +275,7 @@ function loadPatientForm() {
     fMainComplaint: patient.mainComplaint,
     fComplaint: patient.complaint,
     fHistory: patient.history,
+    fDiagnoses: patient.diagnoses,
     fPhysical: patient.physical,
     fOthers: patient.others,
     fTherapy: patient.therapy,
@@ -337,7 +341,7 @@ function renderGroupCards(hostId, entries, label, prefix) {
     host.appendChild(makeSimpleCard(`${label} ${i + 1}`, entry, `${prefix}-${i}`));
   });
 
-  document.getElementById("addLabBtn").disabled = entries.length >= 3;
+  document.getElementById("addLabBtn").disabled = false;
 }
 
 function renderSingleCard(hostId, entry, label, key) {
@@ -483,7 +487,7 @@ function wireCard(card, entry, key) {
 
 function addLab() {
   const patient = patientById(selectedPatientId);
-  if (!patient || patient.tests.labs.length >= 3) return;
+  if (!patient) return;
 
   patient.tests.labs.push(newEntry());
   persist();
@@ -518,6 +522,7 @@ function collectForm() {
   patient.mainComplaint = document.getElementById("fMainComplaint").value;
   patient.complaint = document.getElementById("fComplaint").value;
   patient.history = document.getElementById("fHistory").value;
+  patient.diagnoses = document.getElementById("fDiagnoses").value;
   patient.physical = document.getElementById("fPhysical").value;
   patient.others = document.getElementById("fOthers").value;
   patient.therapy = document.getElementById("fTherapy").value;
@@ -609,99 +614,85 @@ function addRecommendation() {
   renderRecommendations(patient);
 }
 
-function buildMockSummary(patient) {
-  const out = [
-    `${patient.sex}, ${ageFromYob(patient.yob)} years, ${patient.mainComplaint}.`
+function clinicalPayload(patient) {
+  const data = {};
+  for (const key of ['sex','mainComplaint','complaint','history','physical','diagnoses','others','therapy','course','disposition','hospital','ward','physician','admissionNote','otherOutcome','otherDetails']) data[key] = patient[key] || '';
+  data.age = String(ageFromYob(patient.yob));
+  data.recommendations = (patient.recommendations || []).filter(Boolean);
+  const test = (label, entry) => ({ label, status: entryStatus(entry), result: entryStatus(entry) === 'result' ? entry.savedText : '' });
+  data.tests = [
+    ...patient.tests.labs.map((e,i) => test(`Lab ${i+1}`,e)),
+    test('EKG',patient.tests.ekg), test(/\bVVG\b/i.test(patient.tests.gas.text) ? 'VVG' : 'AVG',patient.tests.gas),
+    ...patient.tests.radiology.map((e,i) => test(e.type || `Radiology ${i+1}`,e)),
+    ...patient.tests.consultations.map((e,i) => test(e.type || `Consultation ${i+1}`,e))
   ];
-
-  if (patient.complaint) out.push(patient.complaint.trim());
-  if (patient.history) out.push(`History: ${patient.history.trim()}`);
-  if (patient.physical) out.push(`Status: ${patient.physical.trim()}`);
-
-  patient.tests.labs.forEach((entry, i) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`Lab ${i + 1}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`Lab ${i + 1}: waiting for result.`);
-    }
-  });
-
-  [
-    ["EKG", patient.tests.ekg],
-    [/\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG", patient.tests.gas]
-  ].forEach(([label, entry]) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  patient.tests.radiology.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Radiology ${i + 1}`;
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  patient.tests.consultations.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Consultation ${i + 1}`;
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  if (patient.therapy) out.push(`Therapy: ${patient.therapy.trim()}`);
-  if (patient.course) out.push(`Course: ${patient.course.trim()}`);
-
-  if (patient.disposition === "discharged") {
-    out.push("Final decision: discharged.");
-
-    const recs = (patient.recommendations || []).filter(Boolean);
-    if (recs.length) out.push("Plan: " + recs.join("; "));
-  } else if (patient.disposition === "admitted") {
-    let line = "Final decision: admitted/submitted";
-
-    if (patient.ward) line += ` to ${patient.ward}`;
-    if (patient.hospital) line += ` at ${patient.hospital}`;
-    if (patient.physician) line += ` under ${patient.physician}`;
-
-    out.push(line + ".");
-
-    if (patient.admissionNote) out.push(patient.admissionNote.trim());
-  } else if (patient.disposition === "other") {
-    out.push(`Final decision: ${patient.otherOutcome || "other"}.`);
-
-    if (patient.otherDetails) out.push(patient.otherDetails.trim());
-  }
-
-  return out.join("\n");
+  return data;
 }
-
-function generateSummary() {
+function goldReferences(patientId) {
+  state = purgeExpired(state);
+  const unique = new Map();
+  for (const ref of state.references) if (ref.source === 'finalized_summary' && ref.patientId !== patientId) unique.set(ref.patientId, ref);
+  return [...unique.values()].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5).map(r => r.text);
+}
+const generating = new Set();
+async function generateSummary() {
   const patient = collectForm();
-  if (!patient) return;
-
-  patient.summary = buildMockSummary(patient);
-  patient.summaryGeneratedAt = nowIso();
-
-  persist();
-
-  document.getElementById("fSummary").value = patient.summary;
-  renderSummaryStatus(patient);
-  flash("Summary generated (mock backend skill).");
+  if (!patient || generating.has(patient.id)) return;
+  const status = document.getElementById('aiStatus');
+  const token = document.getElementById('appAccessToken').value.trim();
+  let url;
+  try {
+    url = new URL(window.SBO_CONFIG?.apiUrl);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw Error();
+  } catch { status.textContent = 'Configure the HTTPS backend URL in config.js first.'; return; }
+  if (!token) { status.textContent = 'Enter your app access token (not an OpenAI API key).'; return; }
+  const snapshot = JSON.stringify(clinicalPayload(patient));
+  const previous = patient.summary;
+  const finalizedAt = patient.summaryFinalizedAt;
+  generating.add(patient.id);
+  document.getElementById('generateSummaryBtn').disabled = true;
+  status.textContent = 'Generating SBO Summary…';
+  try {
+    const response = await fetch(url.href, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      credentials: 'omit', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(65000),
+      body: JSON.stringify({ current_case: JSON.parse(snapshot), finalized_gold_references: goldReferences(patient.id) })
+    });
+    const result = await response.json();
+    if (!response.ok || typeof result.summary !== 'string' || !result.summary.trim()) throw new Error(result.error || 'Generation failed.');
+    if (selectedPatientId === patient.id) collectForm();
+    if (snapshot !== JSON.stringify(clinicalPayload(patient)) || patient.summary !== previous || patient.summaryFinalizedAt !== finalizedAt || patient.closedAt) throw new Error('Case changed while generating. Please generate again; your edits were preserved.');
+    patient.summary = result.summary;
+    patient.summaryGeneratedAt = nowIso();
+    invalidateFinalization(patient);
+    persist();
+    if (selectedPatientId === patient.id) { document.getElementById('fSummary').value = patient.summary; renderSummaryStatus(patient); }
+    status.textContent = `Summary ready for patient ${patient.localId}. Review before Finalize.`;
+  } catch (error) {
+    status.textContent = ['TimeoutError','AbortError'].includes(error.name) ? 'Generation timed out. Existing summary preserved.' : error.message || 'Connection failed.';
+  } finally {
+    generating.delete(patient.id);
+    document.getElementById('generateSummaryBtn').disabled = generating.has(selectedPatientId);
+  }
+}
+function invalidateFinalization(patient) {
+  patient.summaryFinalizedAt = null;
+  patient.summaryFinalizedText = '';
+  patient.closedAt = null;
+  state.references = state.references.filter(r => r.patientId !== patient.id);
+}
+function undoFinalize() {
+  const patient = collectForm(); if (!patient) return;
+  invalidateFinalization(patient); persist(); renderApp();
+}
+function closeCase() {
+  const patient = collectForm(); if (!patient) return;
+  if (!patient.summaryFinalizedAt || patient.summary.trim() !== patient.summaryFinalizedText.trim() || patient.finalizedSnapshot !== JSON.stringify(clinicalPayload(patient))) { alert('Review and finalize the current case before closing.'); return; }
+  patient.closedAt = nowIso(); persist(); renderApp();
+}
+function reopenCase() {
+  const patient = patientById(selectedPatientId); if (!patient) return;
+  patient.closedAt = null; persist(); renderApp();
 }
 
 async function finalizeSummary() {
@@ -719,6 +710,9 @@ async function finalizeSummary() {
   patient.summaryFinalizedAt = nowIso();
   patient.updatedAt = nowIso();
 
+  patient.finalizedSnapshot = JSON.stringify(clinicalPayload(patient));
+  patient.closedAt = null;
+  state.references = state.references.filter(r => r.patientId !== patient.id);
   state.references.push({
     id: crypto.randomUUID(),
     patientId: patient.id,
@@ -741,6 +735,11 @@ async function finalizeSummary() {
 }
 
 function renderSummaryStatus(patient) {
+  document.getElementById('generateSummaryBtn').disabled = generating.has(patient.id);
+  document.getElementById('undoFinalizeBtn').disabled = !patient.summaryFinalizedAt;
+  document.getElementById('closeCaseBtn').disabled = !patient.summaryFinalizedAt || Boolean(patient.closedAt);
+  document.getElementById('reopenCaseBtn').disabled = !patient.closedAt;
+  document.getElementById('styleCount').textContent = `${goldReferences(patient.id).length} finalized examples available for this case (maximum 5).`;
   const summaryStatus = document.getElementById("summaryStatus");
   const summaryText = document.getElementById("fSummary").value || "";
 
@@ -751,7 +750,7 @@ function renderSummaryStatus(patient) {
   }
 
   const changed =
-    summaryText.trim() !== patient.summaryFinalizedText.trim();
+    summaryText.trim() !== patient.summaryFinalizedText.trim() || patient.finalizedSnapshot !== JSON.stringify(clinicalPayload(patient));
 
   summaryStatus.innerHTML = changed
     ? '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize lại để cập nhật reference.</span>'
@@ -859,6 +858,17 @@ function attr(value) {
   return esc(value).replace(/`/g, "&#096;");
 }
 
+document.getElementById('undoFinalizeBtn').onclick = undoFinalize;
+document.getElementById('closeCaseBtn').onclick = closeCase;
+document.getElementById('reopenCaseBtn').onclick = reopenCase;
+document.getElementById('clearAccessTokenBtn').onclick = () => { document.getElementById('appAccessToken').value = ''; };
+function saveCurrentEdits() {
+  const patient = collectForm();
+  if (patient && patient.summaryFinalizedAt && (patient.summary.trim() !== patient.summaryFinalizedText.trim() || patient.finalizedSnapshot !== JSON.stringify(clinicalPayload(patient)))) invalidateFinalization(patient);
+  persist();
+}
+document.getElementById('patientForm').addEventListener('input', saveCurrentEdits);
+document.getElementById('patientForm').addEventListener('change', saveCurrentEdits);
 document.getElementById("startShiftBtn").onclick = startShift;
 document.getElementById("addPatientBtn").onclick = addPatient;
 document.getElementById("savePatientBtn").onclick = savePatient;
@@ -876,3 +886,4 @@ document.getElementById("fSummary").addEventListener("input", () => {
 });
 
 renderApp();
+
