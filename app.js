@@ -4,6 +4,47 @@ let backendReady = false;
 let currentUser = null;
 let stateDirty = false;
 let currentView = "patients";
+const UI_LANG_KEY = "er_command_center_ui_lang_v1";
+let uiLang = localStorage.getItem(UI_LANG_KEY) || "en";
+const I18N = {
+  en: {
+    noActiveShift:"No active shift", oneShiftOnly:"Only one shift can be active at a time.",
+    startShift:"START SHIFT", importPatient:"Import new patient",
+    autoId:"ID automatically starts from 01 in each shift.", sex:"Sex", yob:"Year of birth",
+    mainComplaint:"Main complaint", addPatient:"ADD PATIENT", patientRecord:"Patient record",
+    waitingOnly:"Status shows tests currently waiting for result.",
+    diagnoses:"Diagnoses", disposition:"Disposition", finalDecision:"4. Final decision / disposition"
+  },
+  hu: {
+    noActiveShift:"Nincs aktív műszak", oneShiftOnly:"Egyszerre csak egy aktív műszak lehet.",
+    startShift:"MŰSZAK INDÍTÁSA", importPatient:"Új beteg felvétele",
+    autoId:"A betegazonosító minden műszakban 01-től indul.", sex:"Nem", yob:"Születési év",
+    mainComplaint:"Fő panasz", addPatient:"BETEG HOZZÁADÁSA", patientRecord:"Beteglista",
+    waitingOnly:"A státusz csak az eredményre váró vizsgálatokat mutatja.",
+    diagnoses:"Diagnózisok", disposition:"Diszpozíció", finalDecision:"4. Végső döntés / diszpozíció"
+  }
+};
+
+function applyLanguage(lang) {
+  uiLang = I18N[lang] ? lang : "en";
+  localStorage.setItem(UI_LANG_KEY, uiLang);
+  document.documentElement.lang = uiLang === "hu" ? "hu" : "en";
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const value = I18N[uiLang][el.dataset.i18n];
+    if (value) el.textContent = value;
+  });
+  const disposition = document.getElementById("fDisposition");
+  if (disposition) {
+    const labels = uiLang === "hu"
+      ? ["Aktív / folyamatban", "Otthonába bocsátva", "Osztályos felvétel / áthelyezés", "Egyéb"]
+      : ["Active / in progress", "Discharged", "Admitted / transferred", "Other"];
+    [...disposition.options].forEach((option, i) => {
+      if (labels[i]) option.textContent = labels[i];
+    });
+  }
+  document.getElementById("langEnBtn")?.classList.toggle("active", uiLang === "en");
+  document.getElementById("langHuBtn")?.classList.toggle("active", uiLang === "hu");
+}
 
 function defaultState() {
   return { shift: null, patients: [], references: [] };
@@ -61,8 +102,18 @@ function fmtTime(iso) {
   return iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 }
 
+function normalizeYob(value) {
+  const text = String(value ?? "").trim();
+  if (/^\d{2}$/.test(text)) {
+    const n = Number(text);
+    const current2 = new Date().getFullYear() % 100;
+    return String(n <= current2 ? 2000 + n : 1900 + n);
+  }
+  return text;
+}
+
 function ageFromYob(yob) {
-  const year = parseInt(yob, 10);
+  const year = parseInt(normalizeYob(yob), 10);
   return year ? new Date().getFullYear() - year : "";
 }
 
@@ -92,6 +143,36 @@ function newEntry(type = "") {
   };
 }
 
+function radiologyEntry() {
+  return {
+    ...newEntry(""),
+    bodyPart: "",
+    modality: "",
+    otherTest: ""
+  };
+}
+
+function normalizeRadiologyEntry(entry) {
+  if (!entry) return radiologyEntry();
+  if (entry.bodyPart === undefined) entry.bodyPart = "";
+  if (entry.modality === undefined) entry.modality = "";
+  if (entry.otherTest === undefined) entry.otherTest = "";
+  if (!entry.bodyPart && !entry.modality && !entry.otherTest && (entry.type || "").trim()) {
+    entry.modality = "other";
+    entry.otherTest = (entry.type || "").trim();
+  }
+  return entry;
+}
+
+function radiologyType(entry) {
+  normalizeRadiologyEntry(entry);
+  const body = (entry.bodyPart || "").trim();
+  const modality = (entry.modality || "").trim();
+  const other = (entry.otherTest || "").trim();
+  if (modality === "other") return [body, other].filter(Boolean).join(" — ") || "Radiology";
+  return [body, modality].filter(Boolean).join(" ").trim() || "Radiology";
+}
+
 function entryStatus(entry) {
   if (entry.mode === "notordered") return "notordered";
   if (
@@ -118,7 +199,7 @@ function waitingLabels(patient) {
 
   patient.tests.radiology.forEach((entry, i) => {
     if (entryStatus(entry) === "waiting") {
-      out.push(entry.type?.trim() || `Radiology ${i + 1}`);
+      out.push(radiologyType(entry) || `Radiology ${i + 1}`);
     }
   });
 
@@ -313,13 +394,20 @@ async function addPatient() {
   if (!state.shift) return;
 
   const sex = document.getElementById("newSex").value;
-  const yob = document.getElementById("newYob").value.trim();
+  const yob = normalizeYob(document.getElementById("newYob").value);
   const mainComplaint = document.getElementById("newComplaint").value.trim();
 
   if (!sex || !yob || !mainComplaint) {
     alert("Please enter Sex, Year of birth and Main complaint.");
     return;
   }
+
+  const currentYear = new Date().getFullYear();
+  if (!/^\d{4}$/.test(yob) || Number(yob) < 1900 || Number(yob) > currentYear) {
+    alert("Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
+    return;
+  }
+  document.getElementById("newYob").value = yob;
 
   const patient = {
     id: crypto.randomUUID(),
@@ -335,12 +423,13 @@ async function addPatient() {
       labs: [newEntry()],
       ekg: newEntry(),
       gas: newEntry(),
-      radiology: [newEntry("")],
+      radiology: [radiologyEntry()],
       consultations: [newEntry("")]
     },
     others: "",
     therapy: "",
     course: "",
+    diagnoses: "",
     disposition: "",
     recommendations: [""],
     hospital: "",
@@ -398,6 +487,7 @@ function loadPatientForm() {
     fOthers: patient.others,
     fTherapy: patient.therapy,
     fCourse: patient.course,
+    fDiagnoses: patient.diagnoses || "",
     fDisposition: patient.disposition,
     fHospital: patient.hospital,
     fWard: patient.ward,
@@ -427,13 +517,7 @@ function renderAllTests(patient) {
     /\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG",
     "gas"
   );
-  renderDynamicCards(
-    "radiologyCards",
-    patient.tests.radiology,
-    "Radiology",
-    "radiology",
-    "Type e.g. CT, CXR, Ultrasound"
-  );
+  renderRadiologyCards(patient);
   renderDynamicCards(
     "consultCards",
     patient.tests.consultations,
@@ -441,6 +525,15 @@ function renderAllTests(patient) {
     "consultations",
     "Type e.g. Cardiology, Neurology"
   );
+}
+
+function modeDots(entry) {
+  const status = entryStatus(entry);
+  return `<div class="mode-dots" data-mode-dots>
+    <button type="button" class="mode-dot-btn waiting ${status === "waiting" ? "active" : ""}" data-mode-choice="waiting" title="Waiting for result" aria-label="Waiting for result"></button>
+    <button type="button" class="mode-dot-btn notordered ${status === "notordered" ? "active" : ""}" data-mode-choice="notordered" title="Not ordered" aria-label="Not ordered"></button>
+    <span class="mode-dot-btn result ${status === "result" ? "active" : ""}" title="Result available" aria-label="Result available"></span>
+  </div>`;
 }
 
 function statusBadge(status) {
@@ -482,14 +575,13 @@ function makeSimpleCard(label, entry, key, isGas = false) {
         <span class="test-name">${label}</span>
         ${isGas ? `<span class="gas-type">${label}</span>` : ""}
       </div>
-      ${statusBadge(status)}
+      <div class="card-head-actions">
+        ${modeDots(entry)}
+        ${key.includes("-") ? '<button class="btn small delete-test" type="button" data-delete-test>DELETE</button>' : ""}
+      </div>
     </div>
 
     <div class="test-grid">
-      <select data-mode="${key}">
-        <option value="waiting" ${entry.mode !== "notordered" ? "selected" : ""}>Waiting for result</option>
-        <option value="notordered" ${entry.mode === "notordered" ? "selected" : ""}>Not ordered</option>
-      </select>
 
       <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="${label} result...">${esc(entry.text || "")}</textarea>
 
@@ -499,6 +591,20 @@ function makeSimpleCard(label, entry, key, isGas = false) {
       </button>
     </div>
   `;
+
+  const deleteButton = card.querySelector("[data-delete-test]");
+  if (deleteButton) {
+    deleteButton.onclick = () => {
+      const patient = patientById(selectedPatientId);
+      if (!patient) return;
+      const [prefix, rawIndex] = key.split("-");
+      const index = Number(rawIndex);
+      if (prefix === "lab" && patient.tests.labs.length > 1) patient.tests.labs.splice(index, 1);
+      persist();
+      renderAllTests(patient);
+      updateStatusCell(patient);
+    };
+  }
 
   wireCard(card, entry, key);
 
@@ -522,16 +628,14 @@ function renderDynamicCards(hostId, entries, label, prefix, placeholder) {
     card.innerHTML = `
       <div class="test-head">
         <div class="test-name-wrap"><span class="test-name">${label} ${i + 1}</span></div>
-        ${statusBadge(status)}
+        <div class="card-head-actions">
+          ${modeDots(entry)}
+          ${entries.length > 1 ? '<button class="btn small delete-test" type="button" data-delete-test>DELETE</button>' : ""}
+        </div>
       </div>
 
       <div class="dynamic-grid">
         <input data-type="${key}" value="${attr(entry.type || "")}" placeholder="${placeholder}" />
-
-        <select data-mode="${key}">
-          <option value="waiting" ${entry.mode !== "notordered" ? "selected" : ""}>Waiting for result</option>
-          <option value="notordered" ${entry.mode === "notordered" ? "selected" : ""}>Not ordered</option>
-        </select>
 
         <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="Result / note...">${esc(entry.text || "")}</textarea>
 
@@ -551,12 +655,86 @@ function renderDynamicCards(hostId, entries, label, prefix, placeholder) {
       updateStatusCell(patientById(selectedPatientId));
     };
 
+    const deleteButton = card.querySelector("[data-delete-test]");
+    if (deleteButton) {
+      deleteButton.onclick = () => {
+        entries.splice(i, 1);
+        persist();
+        renderAllTests(patientById(selectedPatientId));
+        updateStatusCell(patientById(selectedPatientId));
+      };
+    }
+
+    wireCard(card, entry, key);
+  });
+}
+
+function renderRadiologyCards(patient) {
+  const host = document.getElementById("radiologyCards");
+  host.innerHTML = "";
+  patient.tests.radiology.forEach((entry, i) => {
+    normalizeRadiologyEntry(entry);
+    const key = `radiology-${i}`;
+    const status = entryStatus(entry);
+    const card = document.createElement("div");
+    const bodyParts = ["", "koponya", "mellkas", "has", "mellkas és has", "has és kismedence"];
+    const modalities = ["", "RTG", "ultrahang", "CT", "MR", "other"];
+    const options = (items, current, labels = {}) => items.map((value) =>
+      `<option value="${attr(value)}"${value === current ? " selected" : ""}>${labels[value] || value || "— select —"}</option>`
+    ).join("");
+
+    card.className = `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
+    card.dataset.card = key;
+    card.innerHTML = `
+      <div class="test-head">
+        <div class="test-name-wrap"><span class="test-name">Radiology ${i + 1}</span><span class="subtle" data-rad-label>${esc(radiologyType(entry))}</span></div>
+        <div class="card-head-actions">
+          ${modeDots(entry)}
+          ${patient.tests.radiology.length > 1 ? '<button class="btn small delete-test" type="button" data-delete-test>DELETE</button>' : ""}
+        </div>
+      </div>
+      <div class="radiology-grid${entry.modality === "other" ? " has-other" : ""}">
+        <select data-body>${options(bodyParts, entry.bodyPart)}</select>
+        <select data-modality>${options(modalities, entry.modality, {other:"Other / specific"})}</select>
+        <input data-other class="${entry.modality === "other" ? "" : "hidden"}" value="${attr(entry.otherTest || "")}" placeholder="Specific test e.g. CT angiographia" />
+        <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="Radiology result...">${esc(entry.text || "")}</textarea>
+        <button type="button" class="btn small primary test-save" data-save="${key}" ${!entry.text.trim() || entry.mode === "notordered" || status === "result" ? "disabled" : ""}>SAVE RESULT</button>
+      </div>`;
+
+    const body = card.querySelector("[data-body]");
+    const modality = card.querySelector("[data-modality]");
+    const other = card.querySelector("[data-other]");
+    const updateType = () => {
+      entry.bodyPart = body.value;
+      entry.modality = modality.value;
+      entry.otherTest = other.value;
+      entry.type = radiologyType(entry);
+      other.classList.toggle("hidden", entry.modality !== "other");
+      card.querySelector(".radiology-grid").classList.toggle("has-other", entry.modality === "other");
+      card.querySelector("[data-rad-label]").textContent = entry.type;
+      persist();
+      updateStatusCell(patient);
+    };
+    body.onchange = updateType;
+    modality.onchange = updateType;
+    other.oninput = updateType;
+
+    const deleteButton = card.querySelector("[data-delete-test]");
+    if (deleteButton) {
+      deleteButton.onclick = () => {
+        patient.tests.radiology.splice(i, 1);
+        persist();
+        renderRadiologyCards(patient);
+        updateStatusCell(patient);
+      };
+    }
+    host.appendChild(card);
     wireCard(card, entry, key);
   });
 }
 
 function wireCard(card, entry, key) {
-  const mode = card.querySelector(`[data-mode="${key}"]`);
+  const modeButtons = [...card.querySelectorAll("[data-mode-choice]")];
   const text = card.querySelector(`[data-text="${key}"]`);
   const save = card.querySelector(`[data-save="${key}"]`);
 
@@ -566,7 +744,12 @@ function wireCard(card, entry, key) {
     card.className =
       `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
 
-    card.querySelector(".test-status").outerHTML = statusBadge(status);
+    const statusEl = card.querySelector(".test-status");
+    if (statusEl) statusEl.outerHTML = statusBadge(status);
+    card.querySelectorAll("[data-mode-choice]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.modeChoice === status);
+    });
+    card.querySelector(".mode-dot-btn.result")?.classList.toggle("active", status === "result");
     text.disabled = entry.mode === "notordered";
     save.disabled =
       !entry.text.trim() || entry.mode === "notordered" || status === "result";
@@ -574,11 +757,13 @@ function wireCard(card, entry, key) {
     updateStatusCell(patientById(selectedPatientId));
   }
 
-  mode.onchange = () => {
-    entry.mode = mode.value;
-    persist();
-    refreshVisual();
-  };
+  modeButtons.forEach((button) => {
+    button.onclick = () => {
+      entry.mode = button.dataset.modeChoice === "notordered" ? "notordered" : "waiting";
+      persist();
+      refreshVisual();
+    };
+  });
 
   text.oninput = () => {
     entry.text = text.value;
@@ -591,6 +776,14 @@ function wireCard(card, entry, key) {
       card.querySelector(".gas-type").textContent = label;
     }
   };
+
+  text.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      entry.text = text.value;
+      if (entry.mode !== "notordered" && entry.text.trim()) save.click();
+    }
+  });
 
   save.onclick = async () => {
     if (!entry.text.trim()) return;
@@ -622,7 +815,7 @@ function addRadiology() {
   const patient = patientById(selectedPatientId);
   if (!patient) return;
 
-  patient.tests.radiology.push(newEntry(""));
+  patient.tests.radiology.push(radiologyEntry());
   persist();
   renderAllTests(patient);
   updateStatusCell(patient);
@@ -649,6 +842,7 @@ function collectForm() {
   patient.others = document.getElementById("fOthers").value;
   patient.therapy = document.getElementById("fTherapy").value;
   patient.course = document.getElementById("fCourse").value;
+  patient.diagnoses = document.getElementById("fDiagnoses").value;
   patient.disposition = document.getElementById("fDisposition").value;
   patient.hospital = document.getElementById("fHospital").value;
   patient.ward = document.getElementById("fWard").value;
@@ -1254,6 +1448,8 @@ document.getElementById("patientForm").addEventListener("submit", (event) => {
   event.preventDefault();
 });
 
+document.getElementById("langEnBtn").onclick = () => { applyLanguage("en"); renderApp(); };
+document.getElementById("langHuBtn").onclick = () => { applyLanguage("hu"); renderApp(); };
 document.getElementById("patientsNav").onclick = () => setView("patients");
 document.getElementById("aiLearningNav").onclick = () => setView("learning");
 document.getElementById("adminNav").onclick = () => setView("admin");
@@ -1281,4 +1477,5 @@ document.getElementById("fSummary").addEventListener("input", () => {
   if (patient) renderSummaryStatus(patient);
 });
 
+applyLanguage(uiLang);
 bootstrap();
