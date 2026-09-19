@@ -26,6 +26,21 @@ jobs:
           node --check backend.js
           node --check config.js
 
+      - name: Check security invariants
+        run: |
+          if grep -R -E "SUPABASE_(ANON_KEY|SERVICE_ROLE_KEY)" supabase/functions; then
+            echo "Legacy Supabase API key variable found."
+            exit 1
+          fi
+          if grep -q "localStorage" app.js; then
+            echo "Clinical app.js must not persist data in localStorage."
+            exit 1
+          fi
+          if grep -R -E "verify_jwt[[:space:]]*=[[:space:]]*false" supabase/config.toml; then
+            echo "Authenticated functions must keep JWT verification enabled."
+            exit 1
+          fi
+
       - name: Type-check Edge Functions
         run: |
           deno check supabase/functions/_shared/deidentify.ts
