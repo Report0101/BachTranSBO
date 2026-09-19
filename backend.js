@@ -121,7 +121,10 @@
       type,
       mode: "waiting",
       text: "",
-      savedText: ""
+      savedText: "",
+      bodyPart: "",
+      modality: "",
+      otherTest: ""
     };
   }
 
@@ -132,7 +135,10 @@
       type: row.subtype || defaultType,
       mode: row.mode || "waiting",
       text: row.result_text || "",
-      savedText: row.saved_result_text || ""
+      savedText: row.saved_result_text || "",
+      bodyPart: row.body_part || "",
+      modality: row.modality || "",
+      otherTest: row.other_test || ""
     };
   }
 
@@ -280,6 +286,7 @@
         complaint: row.complaint || "",
         history: row.history || "",
         physical: row.physical_exam || "",
+        diagnoses: row.diagnoses || "",
         tests: {
           labs: labs.length ? labs : [blankEntry()],
           ekg: rowToEntry(ekg),
