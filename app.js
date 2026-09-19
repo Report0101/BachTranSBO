@@ -173,13 +173,59 @@ function radiologyType(entry) {
 
 function entryStatus(entry) {
   if (entry.mode === "notordered") return "notordered";
-  if (
-    (entry.savedText || "").trim() &&
-    (entry.text || "").trim() === (entry.savedText || "").trim()
-  ) {
-    return "result";
-  }
+  if ((entry.text || "").trim()) return "result";
   return "waiting";
+}
+
+function patientTestEntries(patient) {
+  if (!patient?.tests) return [];
+  return [
+    ...(patient.tests.labs || []),
+    patient.tests.ekg,
+    patient.tests.gas,
+    ...(patient.tests.radiology || []),
+    ...(patient.tests.consultations || [])
+  ].filter(Boolean);
+}
+
+function commitFilledTestResults(patient) {
+  patientTestEntries(patient).forEach((entry) => {
+    if (entry.mode !== "notordered" && (entry.text || "").trim()) {
+      entry.savedText = entry.text;
+    }
+  });
+}
+
+function refreshSummaryControls(patient) {
+  const generate = document.getElementById("generateSummaryBtn");
+  const finalize = document.getElementById("finalizeSummaryBtn");
+  const gate = document.getElementById("summaryGate");
+  if (!generate || !finalize || !gate || !patient) return;
+
+  const blockers = waitingLabels(patient);
+  const blocked = blockers.length > 0;
+  const completed = isCompleted(patient);
+  const message = blocked
+    ? (uiLang === "hu"
+      ? `Az összefoglaló le van tiltva. Rendezendő: ${blockers.join(", ")}. Adjon meg eredményt, vagy jelölje Not ordered státuszra.`
+      : `Summary locked. Resolve: ${blockers.join(", ")}. Enter a result or mark it Not ordered.`)
+    : (uiLang === "hu"
+      ? "Minden vizsgálat rendezett. Az összefoglaló elkészíthető."
+      : "All tests are resolved. Summary can be generated.");
+
+  gate.textContent = message;
+  gate.className = `summary-gate ${blocked ? "blocked" : "ready"}`;
+
+  if (generate.dataset.busy !== "true") {
+    generate.disabled = blocked || completed;
+  }
+  if (finalize.dataset.busy !== "true") {
+    finalize.disabled = blocked || completed;
+  }
+
+  const title = blocked ? message : "";
+  generate.title = title;
+  finalize.title = title;
 }
 
 function waitingLabels(patient) {
@@ -335,18 +381,29 @@ function renderPatients() {
   const tbody = document.getElementById("patientTbody");
   tbody.innerHTML = "";
 
-  activeShiftPatients().forEach((patient) => {
+  const orderedPatients = activeShiftPatients()
+    .slice()
+    .sort((a, b) => {
+      const completionOrder = Number(isCompleted(a)) - Number(isCompleted(b));
+      if (completionOrder !== 0) return completionOrder;
+      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+    });
+
+  orderedPatients.forEach((patient) => {
     const waits = waitingLabels(patient);
-    const statusHtml = waits.length
+    const statusHtml = isCompleted(patient)
+      ? '<span class="badge done">COMPLETED</span>'
+      : waits.length
       ? `<div class="wait-stack">${waits
           .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
           .join("")}</div>`
-      : '<span class="wait-none">—</span>';
+      : '<span class="wait-none">READY</span>';
 
     const tr = document.createElement("tr");
     tr.dataset.id = patient.id;
 
     if (patient.id === selectedPatientId) tr.classList.add("selected");
+    if (isCompleted(patient)) tr.classList.add("completed");
 
     tr.innerHTML = `
       <td>${patient.localId}</td>
@@ -524,6 +581,7 @@ function renderAllTests(patient) {
     "consultations",
     "Type e.g. Cardiology, Neurology"
   );
+  refreshSummaryControls(patient);
 }
 
 function modeDots(entry) {
@@ -752,15 +810,32 @@ function wireCard(card, entry, key) {
     });
     card.querySelector(".mode-dot-btn.result")?.classList.toggle("active", status === "result");
     text.disabled = entry.mode === "notordered";
+    const resultAlreadySaved =
+      Boolean((entry.savedText || "").trim()) &&
+      (entry.savedText || "").trim() === (entry.text || "").trim();
     save.disabled =
-      !entry.text.trim() || entry.mode === "notordered" || status === "result";
+      !entry.text.trim() || entry.mode === "notordered" || resultAlreadySaved;
 
-    updateStatusCell(patientById(selectedPatientId));
+    const patient = patientById(selectedPatientId);
+    updateStatusCell(patient);
+    refreshSummaryControls(patient);
   }
 
   modeButtons.forEach((button) => {
     button.onclick = () => {
-      entry.mode = button.dataset.modeChoice === "notordered" ? "notordered" : "waiting";
+      const nextMode = button.dataset.modeChoice === "notordered"
+        ? "notordered"
+        : "waiting";
+
+      if (nextMode === "notordered" && (entry.text || "").trim()) {
+        flash(uiLang === "hu"
+          ? "Törölje az eredményt, mielőtt Not ordered státuszra állítja."
+          : "Clear the result before marking this test Not ordered.");
+        return;
+      }
+
+      entry.mode = nextMode;
+      if (nextMode === "notordered") entry.savedText = "";
       persist();
       refreshVisual();
     };
@@ -939,8 +1014,21 @@ async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
+  const blockers = waitingLabels(patient);
+  if (blockers.length) {
+    refreshSummaryControls(patient);
+    alert(
+      (uiLang === "hu" ? "Az összefoglaló nem készíthető el. Rendezendő: " : "Summary cannot be generated. Resolve: ") +
+      blockers.join(", ")
+    );
+    return;
+  }
+
+  commitFilledTestResults(patient);
+
   const button = document.getElementById("generateSummaryBtn");
   const oldLabel = button.textContent;
+  button.dataset.busy = "true";
   button.disabled = true;
   button.textContent = "GENERATING…";
 
@@ -972,14 +1060,27 @@ async function generateSummary() {
   } catch (error) {
     handleBackendError(error);
   } finally {
-    button.disabled = false;
+    button.dataset.busy = "false";
     button.textContent = oldLabel;
+    refreshSummaryControls(patient);
   }
 }
 
 async function finalizeSummary() {
   const patient = collectForm();
   if (!patient) return;
+
+  const blockers = waitingLabels(patient);
+  if (blockers.length) {
+    refreshSummaryControls(patient);
+    alert(
+      (uiLang === "hu" ? "A case nem zárható le. Rendezendő: " : "Case cannot be finalized. Resolve: ") +
+      blockers.join(", ")
+    );
+    return;
+  }
+
+  commitFilledTestResults(patient);
 
   const text = patient.summary.trim();
 
@@ -1466,6 +1567,14 @@ document.getElementById("generateSkillSuggestionBtn").onclick =
 
 document.getElementById("startShiftBtn").onclick = startShift;
 document.getElementById("addPatientBtn").onclick = addPatient;
+["newSex", "newYob", "newComplaint"].forEach((id) => {
+  document.getElementById(id).addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addPatient();
+    }
+  });
+});
 document.getElementById("savePatientBtn").onclick = savePatient;
 document.getElementById("fDisposition").onchange = updateDispositionVisibility;
 document.getElementById("addRecBtn").onclick = addRecommendation;
@@ -1477,7 +1586,10 @@ document.getElementById("finalizeSummaryBtn").onclick = finalizeSummary;
 
 document.getElementById("fSummary").addEventListener("input", () => {
   const patient = patientById(selectedPatientId);
-  if (patient) renderSummaryStatus(patient);
+  if (patient) {
+    renderSummaryStatus(patient);
+    refreshSummaryControls(patient);
+  }
 });
 
 applyLanguage(uiLang);
