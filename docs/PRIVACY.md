@@ -79,3 +79,17 @@ It must not store a reversible map such as:
 ```
 
 Only aggregate removal counts may be retained or returned to the UI.
+
+
+## Browser state after save
+
+Raw text can exist transiently while the user is typing.
+
+After an explicit clinical save:
+
+1. the browser sends the current case to `clinical-store`,
+2. the backend de-identifies it before database persistence,
+3. the sanitized case is returned to the browser,
+4. the in-memory case and visible form are replaced with that sanitized version.
+
+When a Summary is finalized, clipboard copy uses the sanitized finalized text returned by the privacy pipeline rather than the pre-filter browser text.
