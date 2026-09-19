@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -24,19 +24,21 @@
     </div>
   </header>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="nav-title">Workspace</div>
-      <button class="nav-item active" id="patientsNav">Patients <span>●</span></button>
-      <button class="nav-item" id="aiLearningNav">AI Learning <span>β</span></button>
-      <button class="nav-item" id="adminNav">Admin <span>⚙</span></button>
-      <div class="nav-title">Future modules</div>
-      <button class="nav-item disabled">Analytics <span>PLANNED</span></button>
-      <button class="nav-item disabled">Archive <span>PLANNED</span></button>
-      <button class="nav-item disabled">Integrations <span>PLANNED</span></button>
-    </aside>
+  <nav class="workspace-nav" aria-label="Workspace">
+    <div class="workspace-nav-main">
+      <button class="nav-item active" id="patientsNav" data-i18n="casesNav">Cases <span>●</span></button>
+      <button class="nav-item" id="aiLearningNav" data-i18n="aiLearningNav">AI Learning <span>β</span></button>
+      <button class="nav-item" id="adminNav" data-i18n="adminNav">Admin <span>⚙</span></button>
+    </div>
+    <div class="workspace-nav-future">
+      <span class="nav-future-label" data-i18n="futureModules">Future modules</span>
+      <button class="nav-item disabled"><span data-i18n="analytics">Analytics</span> <small data-i18n="planned">PLANNED</small></button>
+      <button class="nav-item disabled"><span data-i18n="archive">Archive</span> <small data-i18n="planned">PLANNED</small></button>
+      <button class="nav-item disabled"><span data-i18n="integrations">Integrations</span> <small data-i18n="planned">PLANNED</small></button>
+    </div>
+  </nav>
 
-    <main class="main">
+  <main class="main">
       <section id="noShiftView" class="empty hidden">
         <div class="empty-card">
           <h1 data-i18n="noActiveShift">No active shift</h1>
@@ -51,7 +53,7 @@
             <div class="card">
               <div class="card-h">
                 <div>
-                  <h3 data-i18n="importPatient">Import new patient</h3>
+                  <h3 data-i18n="importCase">Import new case</h3>
                   <div class="subtle" data-i18n="autoId">ID automatically starts from 01 in each shift.</div>
                 </div>
               </div>
@@ -78,15 +80,15 @@
                   <label data-i18n="mainComplaint">Main complaint</label>
                   <input id="newComplaint" placeholder="Chest pain" />
                 </div>
-                <button class="btn primary" id="addPatientBtn" data-i18n="addPatient">ADD PATIENT</button>
+                <button class="btn primary" id="addPatientBtn" data-i18n="addCase">ADD CASE</button>
               </div>
             </div>
 
             <div class="card mt16">
               <div class="card-h">
                 <div>
-                  <h3 data-i18n="patientRecord">Patient record</h3>
-                  <div class="subtle" data-i18n="waitingOnly">Status shows tests currently waiting for result.</div>
+                  <h3 data-i18n="caseRecord">Case list</h3>
+                  <div class="subtle" data-i18n="caseStatusHint">Status shows unresolved items for each case.</div>
                 </div>
               </div>
               <div class="card-b table-wrap">
@@ -109,94 +111,125 @@
           <div class="card">
             <div class="card-h">
               <div>
-                <h3 id="recordTitle">Patient detail</h3>
-                <div class="subtle" id="recordSubtitle">Chọn một bệnh nhân bên trái.</div>
+                <h3 id="recordTitle">Case detail</h3>
+                <div class="subtle" id="recordSubtitle" data-i18n="selectCasePrompt">Select a case from the list.</div>
               </div>
-              <span id="patientStatusBadge"></span>
+              <div class="record-actions">
+                <span id="patientStatusBadge"></span>
+                <button class="btn small hidden" id="reopenCaseBtn" type="button" data-i18n="reopenCase">REOPEN CASE</button>
+              </div>
             </div>
             <div class="card-b">
-              <div id="noPatientSelected" class="subtle">No patient selected.</div>
+              <div id="noPatientSelected" class="subtle" data-i18n="noCaseSelected">No case selected.</div>
 
               <form id="patientForm" class="hidden">
                 <div class="section">
-                  <div class="section-title">1. Clinical</div>
+                  <div class="section-title" data-i18n="sectionClinical">1. Clinical</div>
                   <div class="field">
-                    <label>Main complaint</label>
+                    <label data-i18n="mainComplaint">Main complaint</label>
                     <input id="fMainComplaint" />
                   </div>
-                  <div class="field">
-                    <label>Complaint</label>
+                  <div class="field narrative-field waiting" data-narrative-field="complaint">
+                    <div class="narrative-head">
+                      <label data-i18n="complaint">Complaint</label>
+                      <div class="narrative-actions">
+                        <span class="field-state waiting" data-field-state="complaint">REQUIRED</span>
+                        <button class="btn small none-toggle" type="button" data-none-toggle="complaint" data-i18n="markNone">NONE</button>
+                      </div>
+                    </div>
                     <textarea id="fComplaint" placeholder="Manual input or paste from clipboard..."></textarea>
                   </div>
-                  <div class="field">
-                    <label>Patient history</label>
+                  <div class="field narrative-field waiting" data-narrative-field="history">
+                    <div class="narrative-head">
+                      <label data-i18n="patientHistory">Patient history</label>
+                      <div class="narrative-actions">
+                        <span class="field-state waiting" data-field-state="history">REQUIRED</span>
+                        <button class="btn small none-toggle" type="button" data-none-toggle="history" data-i18n="markNone">NONE</button>
+                      </div>
+                    </div>
                     <textarea id="fHistory" placeholder="Manual input or paste from clipboard..."></textarea>
                   </div>
                 </div>
 
                 <div class="section">
-                  <div class="section-title">2. Test results and status</div>
-                  <div class="info-bar">
-                    Default = <b>Waiting for result</b> (orange). Nhập kết quả rồi bấm
-                    <b>SAVE RESULT</b> → chuyển xanh <b>Result available</b>.
-                    Chọn <b>Not ordered</b> → grey.
+                  <div class="section-title" data-i18n="sectionTests">2. Tests and examination</div>
+                  <div class="info-bar" data-i18n="testLegend">
+                    Orange = unresolved. Enter a result to turn green, or mark Not ordered to turn grey.
                   </div>
 
-                  <div class="field">
-                    <label>Physical examination — main points / status</label>
+                  <div class="field narrative-field waiting" data-narrative-field="physical">
+                    <div class="narrative-head">
+                      <label data-i18n="physicalExam">Physical examination — main points / status</label>
+                      <div class="narrative-actions">
+                        <span class="field-state waiting" data-field-state="physical">REQUIRED</span>
+                        <button class="btn small none-toggle" type="button" data-none-toggle="physical" data-i18n="markNone">NONE</button>
+                      </div>
+                    </div>
                     <textarea id="fPhysical"></textarea>
                   </div>
 
                   <div class="test-group-toolbar">
-                    <div class="test-group-title">Lab</div>
-                    <button class="btn small" type="button" id="addLabBtn">+ ADD LAB</button>
+                    <div class="test-group-title" data-i18n="lab">Lab</div>
+                    <button class="btn small" type="button" id="addLabBtn" data-i18n="addLab">+ ADD LAB</button>
                   </div>
                   <div id="labCards"></div>
 
                   <div class="test-group-toolbar">
-                    <div class="test-group-title">EKG</div>
+                    <div class="test-group-title" data-i18n="ekg">EKG</div>
                   </div>
                   <div id="ekgCard"></div>
 
                   <div class="test-group-toolbar">
-                    <div class="test-group-title">AVG / VVG</div>
+                    <div class="test-group-title" data-i18n="bloodGas">AVG / VVG</div>
                   </div>
                   <div id="gasCard"></div>
 
                   <div class="test-group-toolbar">
-                    <div class="test-group-title">Radiology</div>
-                    <button class="btn small" type="button" id="addRadiologyBtn">+ ADD RADIOLOGY</button>
+                    <div class="test-group-title" data-i18n="radiology">Radiology</div>
+                    <button class="btn small" type="button" id="addRadiologyBtn" data-i18n="addRadiology">+ ADD RADIOLOGY</button>
                   </div>
                   <div id="radiologyCards"></div>
 
                   <div class="test-group-toolbar">
-                    <div class="test-group-title">Consultations</div>
-                    <button class="btn small" type="button" id="addConsultBtn">+ ADD CONSULTATION</button>
+                    <div class="test-group-title" data-i18n="consultations">Consultations</div>
+                    <button class="btn small" type="button" id="addConsultBtn" data-i18n="addConsultation">+ ADD CONSULTATION</button>
                   </div>
                   <div id="consultCards"></div>
 
                   <div class="field">
-                    <label>Others</label>
+                    <label data-i18n="others">Others</label>
                     <textarea id="fOthers"></textarea>
                   </div>
                 </div>
 
                 <div class="section">
-                  <div class="section-title">3. What happens</div>
-                  <div class="field">
-                    <label>Therapy</label>
+                  <div class="section-title" data-i18n="sectionCourse">3. Treatment and course</div>
+                  <div class="field narrative-field waiting" data-narrative-field="therapy">
+                    <div class="narrative-head">
+                      <label data-i18n="therapy">Therapy</label>
+                      <div class="narrative-actions">
+                        <span class="field-state waiting" data-field-state="therapy">REQUIRED</span>
+                        <button class="btn small none-toggle" type="button" data-none-toggle="therapy" data-i18n="markNone">NONE</button>
+                      </div>
+                    </div>
                     <textarea id="fTherapy"></textarea>
                   </div>
-                  <div class="field">
-                    <label>Clinical course / patient status change</label>
+                  <div class="field narrative-field waiting" data-narrative-field="course">
+                    <div class="narrative-head">
+                      <label data-i18n="clinicalCourse">Clinical course / case status change</label>
+                      <div class="narrative-actions">
+                        <span class="field-state waiting" data-field-state="course">REQUIRED</span>
+                        <button class="btn small none-toggle" type="button" data-none-toggle="course" data-i18n="markNone">NONE</button>
+                      </div>
+                    </div>
                     <textarea id="fCourse"></textarea>
                   </div>
                 </div>
 
                 <div class="section">
                   <div class="section-title" data-i18n="finalDecision">4. Final decision / disposition</div>
-                  <div class="info-bar">
-                    Final chỉ là quyết định xử trí. Patient chưa completed cho đến khi Summary được Finalize.
+                  <div class="info-bar" data-i18n="finalDecisionInfo">
+                    Disposition records the clinical decision. The case closes only after the Summary is finalized.
                   </div>
                   <div class="field">
                     <label data-i18n="diagnoses">Diagnoses</label>
@@ -215,69 +248,68 @@
 
                   <div id="dischargedFields" class="hidden">
                     <div class="field">
-                      <label>Recommendation and plan at home</label>
+                      <label data-i18n="homePlan">Recommendation and plan at home</label>
                       <div class="recs" id="recList"></div>
-                      <button class="btn small" id="addRecBtn" type="button">+ Add recommendation</button>
+                      <button class="btn small" id="addRecBtn" type="button" data-i18n="addRecommendation">+ Add recommendation</button>
                     </div>
                   </div>
 
                   <div id="admittedFields" class="hidden">
                     <div class="inline">
                       <div class="field">
-                        <label>Hospital</label>
+                        <label data-i18n="hospital">Hospital</label>
                         <input id="fHospital" />
                       </div>
                       <div class="field">
-                        <label>Ward / department</label>
+                        <label data-i18n="ward">Ward / department</label>
                         <input id="fWard" />
                       </div>
                     </div>
                     <div class="field">
-                      <label>Accepting physician</label>
+                      <label data-i18n="acceptingPhysician">Accepting physician</label>
                       <input id="fPhysician" />
                     </div>
                     <div class="field">
-                      <label>Additional note</label>
+                      <label data-i18n="additionalNote">Additional note</label>
                       <textarea id="fAdmissionNote"></textarea>
                     </div>
                   </div>
 
                   <div id="otherFields" class="hidden">
                     <div class="field">
-                      <label>Outcome</label>
+                      <label data-i18n="outcome">Outcome</label>
                       <input id="fOtherOutcome" placeholder="Death, transfer, left against medical advice..." />
                     </div>
                     <div class="field">
-                      <label>Details</label>
+                      <label data-i18n="details">Details</label>
                       <textarea id="fOtherDetails"></textarea>
                     </div>
                   </div>
                 </div>
 
                 <div class="section">
-                  <div class="section-title">5. Case summary</div>
-                  <div class="info-bar">
-                    <b>Generate Summary</b> dùng de-identified case + active SBO Documentation Skill ở backend.
-                    User có thể chỉnh sửa trước khi Finalize.
+                  <div class="section-title" data-i18n="caseSummary">5. Case summary</div>
+                  <div class="info-bar" data-i18n="summaryInfo">
+                    Generate Summary uses the de-identified case and the active SBO Documentation Skill. Review and edit the draft before finalizing.
                   </div>
                   <div class="summary-actions">
-                    <button class="btn primary" id="generateSummaryBtn" type="button">✨ GENERATE SUMMARY</button>
+                    <button class="btn primary" id="generateSummaryBtn" type="button" data-i18n="generateSummary">✨ GENERATE SUMMARY</button>
                   </div>
                   <div class="summary-gate blocked" id="summaryGate">
                     Summary locked until every orange test is resolved or marked Not ordered.
                   </div>
                   <div class="summary-status" id="summaryStatus"></div>
                   <div class="field">
-                    <label>Summary — editable</label>
+                    <label data-i18n="summaryEditable">Summary — editable</label>
                     <textarea id="fSummary" class="summary-box" placeholder="Generated summary will appear here. You can edit it before Finalize."></textarea>
                   </div>
                   <div class="toolbar">
-                    <button class="btn success" id="finalizeSummaryBtn" type="button">FINALIZE SUMMARY</button>
+                    <button class="btn success" id="finalizeSummaryBtn" type="button" data-i18n="finalizeSummary">FINALIZE SUMMARY</button>
                   </div>
                 </div>
 
                 <div class="sticky-actions">
-                  <button class="btn" id="savePatientBtn" type="button">SAVE PATIENT</button>
+                  <button class="btn" id="savePatientBtn" type="button" data-i18n="saveCase">SAVE CASE</button>
                 </div>
               </form>
             </div>
@@ -399,8 +431,7 @@
           </div>
         </div>
       </section>
-    </main>
-  </div>
+  </main>
 
   <div id="modalHost"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
