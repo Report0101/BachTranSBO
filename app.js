@@ -4,8 +4,7 @@ let backendReady = false;
 let currentUser = null;
 let stateDirty = false;
 let currentView = "patients";
-const UI_LANG_KEY = "er_command_center_ui_lang_v1";
-let uiLang = localStorage.getItem(UI_LANG_KEY) || "en";
+let uiLang = navigator.language?.toLowerCase().startsWith("hu") ? "hu" : "en";
 const I18N = {
   en: {
     noActiveShift:"No active shift", oneShiftOnly:"Only one shift can be active at a time.",
@@ -27,7 +26,6 @@ const I18N = {
 
 function applyLanguage(lang) {
   uiLang = I18N[lang] ? lang : "en";
-  localStorage.setItem(UI_LANG_KEY, uiLang);
   document.documentElement.lang = uiLang === "hu" ? "hu" : "en";
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const value = I18N[uiLang][el.dataset.i18n];
@@ -218,9 +216,10 @@ function renderHeader() {
   meta.innerHTML = "";
   actions.innerHTML = "";
 
+  const hu = uiLang === "hu";
   if (!state.shift) {
-    meta.innerHTML = '<span class="metric">No active shift</span>';
-    actions.innerHTML = '<button class="btn" id="signOutBtn">SIGN OUT</button>';
+    meta.innerHTML = `<span class="metric">${hu ? "Nincs aktív műszak" : "No active shift"}</span>`;
+    actions.innerHTML = `<button class="btn" id="signOutBtn">${hu ? "KIJELENTKEZÉS" : "SIGN OUT"}</button>`;
     document.getElementById("signOutBtn").onclick = signOut;
     return;
   }
@@ -230,15 +229,15 @@ function renderHeader() {
   const active = pts.length - completed;
 
   meta.innerHTML = `
-    <span class="shift-pill"><span class="dot"></span> SHIFT ACTIVE • Started ${fmtTime(state.shift.startedAt)}</span>
-    <span class="metric">Patients <b>${pts.length}</b></span>
-    <span class="metric">Active <b>${active}</b></span>
-    <span class="metric">Completed <b>${completed}</b></span>
+    <span class="shift-pill"><span class="dot"></span> ${hu ? "AKTÍV MŰSZAK" : "SHIFT ACTIVE"} • ${hu ? "Kezdés" : "Started"} ${fmtTime(state.shift.startedAt)}</span>
+    <span class="metric">${hu ? "Betegek" : "Patients"} <b>${pts.length}</b></span>
+    <span class="metric">${hu ? "Aktív" : "Active"} <b>${active}</b></span>
+    <span class="metric">${hu ? "Lezárt" : "Completed"} <b>${completed}</b></span>
   `;
 
   actions.innerHTML =
-    '<button class="btn danger" id="endShiftBtn">END SHIFT</button>' +
-    '<button class="btn" id="signOutBtn">SIGN OUT</button>';
+    `<button class="btn danger" id="endShiftBtn">${hu ? "MŰSZAK LEZÁRÁSA" : "END SHIFT"}</button>` +
+    `<button class="btn" id="signOutBtn">${hu ? "KIJELENTKEZÉS" : "SIGN OUT"}</button>`;
   document.getElementById("endShiftBtn").onclick = endShiftStep1;
   document.getElementById("signOutBtn").onclick = signOut;
 }
@@ -564,6 +563,8 @@ function renderSingleCard(hostId, entry, label, key) {
 function makeSimpleCard(label, entry, key, isGas = false) {
   const status = entryStatus(entry);
   const card = document.createElement("div");
+  const canDelete = key.startsWith("lab-") &&
+    (patientById(selectedPatientId)?.tests?.labs?.length || 0) > 1;
 
   card.className =
     `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
@@ -577,7 +578,7 @@ function makeSimpleCard(label, entry, key, isGas = false) {
       </div>
       <div class="card-head-actions">
         ${modeDots(entry)}
-        ${key.includes("-") ? '<button class="btn small delete-test" type="button" data-delete-test>DELETE</button>' : ""}
+        ${canDelete ? '<button class="btn small delete-test" type="button" data-delete-test>DELETE</button>' : ""}
       </div>
     </div>
 
