@@ -1,3 +1,5 @@
+import { openAiApiKey } from "./openai.ts";
+
 export type PiiReport = {
   taj: number;
   dob: number;
@@ -150,12 +152,7 @@ async function aiScrubItems(
 }> {
   if (!items.length) return { items, personCount: 0 };
 
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!apiKey) {
-    throw new Error(
-      "OPENAI_API_KEY is required for fail-closed person-name de-identification.",
-    );
-  }
+  const apiKey = openAiApiKey();
 
   const model = Deno.env.get("DEID_MODEL") || "gpt-5.6-luna";
 

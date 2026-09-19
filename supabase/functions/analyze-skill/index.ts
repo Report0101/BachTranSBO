@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { openAiApiKey } from "../_shared/openai.ts";
 
 const allowedOrigin = Deno.env.get("APP_ORIGIN") || "*";
 
@@ -118,7 +119,7 @@ async function generateSuggestion(skill: any, revisions: any[]) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env("OPENAI_API_KEY")}`,
+      "Authorization": `Bearer ${openAiApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
