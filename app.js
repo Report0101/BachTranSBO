@@ -1170,6 +1170,10 @@ function attr(value) {
   return esc(value).replace(/`/g, "&#096;");
 }
 
+document.getElementById("patientForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+});
+
 document.getElementById("patientsNav").onclick = () => setView("patients");
 document.getElementById("aiLearningNav").onclick = () => setView("learning");
 document.getElementById("refreshLearningBtn").onclick = () =>
