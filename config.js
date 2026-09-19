@@ -7,14 +7,15 @@ window.BACH_SBO_CONFIG = {
   adminEmail: "bachtran95@gmail.com"
 };
 
-// Native-visible case detail controls. This is deliberately kept inside
-// config.js because that file is guaranteed to load in production before the
-// main app bootstraps. It does not require access to app.js private state.
+// Native-visible case detail controls. This extension is deliberately small and
+// defensive because it runs beside the main app while app.js is still private-scoped.
 (() => {
   "use strict";
 
   const YEAR = new Date().getFullYear();
+  const SAVE_DELAY_MS = 900;
   let lastLoadedCaseId = "";
+  let lastSaveFailedAt = 0;
 
   const OPTIONS = [
     ["", "— select —", "— válasszon —"],
@@ -27,15 +28,39 @@ window.BACH_SBO_CONFIG = {
 
   const lang = () => document.documentElement.lang === "hu" ? "hu" : "en";
   const label = (en, hu) => lang() === "hu" ? hu : en;
-  const ageFromYob = (yob) => {
+
+  function ageFromYob(yob) {
     const y = Number(yob);
     if (!Number.isInteger(y) || y < 1900 || y > YEAR) return "";
     return String(YEAR - y);
-  };
+  }
+
+  function setStatus(en, hu, isError = false) {
+    const st = document.getElementById("iceStatus");
+    if (!st) return;
+    st.textContent = label(en, hu);
+    st.style.color = isError ? "#b91c1c" : "";
+  }
+
+  function selectedId() {
+    return document.querySelector("tr.selected[data-id]")?.dataset?.id || "";
+  }
+
+  function selectedRow() {
+    return document.querySelector("tr.selected[data-id]");
+  }
+
+  function selectedCaseLabel() {
+    return selectedRow()?.querySelector("td")?.textContent?.trim() || "selected";
+  }
 
   function isEditingCaseDetails() {
     const active = document.activeElement;
     return Boolean(active && (active.closest?.("#inlineCaseEditor") || active.id === "fMainComplaint"));
+  }
+
+  function backendReady() {
+    return Boolean(window.BachSBOBackend?.getSession);
   }
 
   function db() {
@@ -51,17 +76,22 @@ window.BACH_SBO_CONFIG = {
     return window.__BachSBOInlineCaseClient;
   }
 
-  function selectedId() {
-    return document.querySelector("tr.selected[data-id]")?.dataset?.id || "";
-  }
+  async function syncedClient() {
+    const client = db();
+    if (!client) throw new Error("Supabase client is not available.");
 
-  function selectedRow() {
-    return document.querySelector("tr.selected[data-id]");
-  }
-
-  function selectedCaseLabel() {
-    const row = selectedRow();
-    return row?.querySelector("td")?.textContent?.trim() || "selected";
+    // Use the same authenticated session as the main app. This avoids RLS/session
+    // drift between this lightweight editor and backend.js.
+    if (backendReady()) {
+      const session = await window.BachSBOBackend.getSession();
+      if (session?.access_token && session?.refresh_token) {
+        await client.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
+        });
+      }
+    }
+    return client;
   }
 
   function ensureUi() {
@@ -82,11 +112,11 @@ window.BACH_SBO_CONFIG = {
           </div>
           <div class="field">
             <label data-ice-label="yob">Year of birth</label>
-            <input id="iceYob" inputmode="numeric" maxlength="4" placeholder="1955" />
+            <input id="iceYob" inputmode="numeric" maxlength="4" placeholder="1955" autocomplete="off" />
           </div>
           <div class="field">
             <label data-ice-label="age">Age</label>
-            <input id="iceAge" inputmode="numeric" maxlength="3" placeholder="auto" readonly aria-readonly="true" style="background:#f8fafc;color:#64748b" />
+            <input id="iceAge" placeholder="auto" readonly aria-readonly="true" style="background:#f8fafc;color:#64748b" />
           </div>
         </div>
         <div class="field">
@@ -95,7 +125,7 @@ window.BACH_SBO_CONFIG = {
         </div>
         <div class="field hidden" id="iceArrivalOtherWrap">
           <label data-ice-label="arrivalOther">Arrival details</label>
-          <input id="iceArrivalOther" placeholder="Describe arrival..." />
+          <input id="iceArrivalOther" placeholder="Describe arrival..." autocomplete="off" />
         </div>
         <div class="toolbar" style="justify-content:space-between;margin-top:8px">
           <div class="subtle" id="iceStatus"></div>
@@ -121,6 +151,7 @@ window.BACH_SBO_CONFIG = {
     document.querySelectorAll("[data-ice-label]").forEach((el) => {
       el.textContent = labels[el.dataset.iceLabel] || el.textContent;
     });
+
     const sel = document.getElementById("iceArrival");
     if (sel) {
       const current = sel.value;
@@ -129,38 +160,47 @@ window.BACH_SBO_CONFIG = {
       ).join("");
       sel.value = current;
     }
+
     const del = document.getElementById("iceDeleteCase");
     if (del) del.textContent = label("DELETE CASE", "ESET TÖRLÉSE");
   }
 
-  async function loadSelected() {
+  async function loadSelected({ force = false } = {}) {
     if (!ensureUi()) return;
     const id = selectedId();
-    const client = db();
-    if (!id || !client) return;
+    if (!id) return;
 
-    // Do not overwrite a field while the doctor is actively editing it.
-    if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
+    if (!force) {
+      if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
+      if (Date.now() - lastSaveFailedAt < 3000) return;
+    }
 
-    const { data, error } = await client
-      .from("cases")
-      .select("id, sex, year_of_birth, main_complaint, arrival_mode, arrival_other")
-      .eq("id", id)
-      .maybeSingle();
-    if (error || !data || selectedId() !== id) return;
+    try {
+      const client = await syncedClient();
+      const { data, error } = await client
+        .from("cases")
+        .select("id, sex, year_of_birth, main_complaint, arrival_mode, arrival_other")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data || selectedId() !== id) return;
 
-    document.getElementById("iceSex").value = data.sex || "";
-    document.getElementById("iceYob").value = data.year_of_birth ? String(data.year_of_birth) : "";
-    document.getElementById("iceAge").value = ageFromYob(data.year_of_birth);
-    document.getElementById("iceArrival").value = data.arrival_mode || "";
-    document.getElementById("iceArrivalOther").value = data.arrival_other || "";
-    document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (data.arrival_mode || "") !== "other");
-    lastLoadedCaseId = id;
+      document.getElementById("iceSex").value = data.sex || "";
+      document.getElementById("iceYob").value = data.year_of_birth ? String(data.year_of_birth) : "";
+      document.getElementById("iceAge").value = ageFromYob(data.year_of_birth);
+      document.getElementById("iceArrival").value = data.arrival_mode || "";
+      document.getElementById("iceArrivalOther").value = data.arrival_other || "";
+      document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (data.arrival_mode || "") !== "other");
+      lastLoadedCaseId = id;
+    } catch (error) {
+      console.warn("Inline case load failed", error);
+    }
   }
 
   function rowUpdate(payload) {
     const row = selectedRow();
     if (!row) return;
+
     const tds = row.querySelectorAll("td");
     const hasYob = Object.prototype.hasOwnProperty.call(payload, "year_of_birth");
     const displayAge = hasYob ? ageFromYob(payload.year_of_birth) : (document.getElementById("iceAge")?.value || "");
@@ -175,16 +215,13 @@ window.BACH_SBO_CONFIG = {
     }
   }
 
-  async function saveSelected() {
-    const id = selectedId();
-    const client = db();
-    if (!id || !client) return;
-
+  function buildPayload() {
     const arrival = document.getElementById("iceArrival")?.value || "";
     const yobText = String(document.getElementById("iceYob")?.value || "").trim();
     const yobNum = Number(yobText);
     const validYob = Number.isInteger(yobNum) && yobNum >= 1900 && yobNum <= YEAR;
     const partialYob = Boolean(yobText) && !validYob;
+
     document.getElementById("iceAge").value = validYob ? ageFromYob(yobNum) : "";
 
     const payload = {
@@ -194,28 +231,49 @@ window.BACH_SBO_CONFIG = {
       arrival_other: arrival === "other" ? document.getElementById("iceArrivalOther")?.value || "" : "",
       updated_at: new Date().toISOString()
     };
-    if (!yobText || validYob) {
-      payload.year_of_birth = validYob ? yobNum : null;
-    }
 
-    const st = document.getElementById("iceStatus");
-    if (st) st.textContent = label("Saving case details…", "Esetadatok mentése…");
-    const { error } = await client.from("cases").update(payload).eq("id", id);
-    if (error) {
-      if (st) st.textContent = label("Could not save case details.", "Nem sikerült menteni az esetadatokat.");
-      console.warn(error);
+    if (!yobText || validYob) payload.year_of_birth = validYob ? yobNum : null;
+    return { payload, partialYob };
+  }
+
+  async function saveSelected() {
+    const id = selectedId();
+    if (!id) return;
+
+    const { payload, partialYob } = buildPayload();
+    if (partialYob) {
+      setStatus(
+        "Enter a 4-digit birth year between 1900 and current year.",
+        "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.",
+        false
+      );
+      rowUpdate(payload);
       return;
     }
-    rowUpdate(payload);
-    if (st) st.textContent = partialYob
-      ? label("Enter a 4-digit birth year between 1900 and current year.", "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.")
-      : label("Case details saved.", "Esetadatok mentve.");
+
+    try {
+      setStatus("Saving case details…", "Esetadatok mentése…");
+      const client = await syncedClient();
+      const { error } = await client.from("cases").update(payload).eq("id", id);
+      if (error) throw error;
+      rowUpdate(payload);
+      lastLoadedCaseId = id;
+      setStatus("Case details saved.", "Esetadatok mentve.");
+    } catch (error) {
+      lastSaveFailedAt = Date.now();
+      const detail = error?.message ? ` (${error.message})` : "";
+      setStatus(
+        `Could not save case details${detail}.`,
+        `Nem sikerült menteni az esetadatokat${detail}.`,
+        true
+      );
+      console.warn("Inline case save failed", error);
+    }
   }
 
   async function deleteSelectedCase() {
     const id = selectedId();
-    const client = db();
-    if (!id || !client) return;
+    if (!id) return;
 
     const name = selectedCaseLabel();
     const firstConfirm = confirm(label(
@@ -230,20 +288,26 @@ window.BACH_SBO_CONFIG = {
     ));
     if (!secondConfirm) return;
 
-    const st = document.getElementById("iceStatus");
     const btn = document.getElementById("iceDeleteCase");
     if (btn) btn.disabled = true;
-    if (st) st.textContent = label("Deleting case…", "Eset törlése…");
 
-    const { error } = await client.from("cases").delete().eq("id", id);
-    if (error) {
-      console.warn(error);
+    try {
+      setStatus("Deleting case…", "Eset törlése…");
+      const client = await syncedClient();
+      const { error } = await client.from("cases").delete().eq("id", id);
+      if (error) throw error;
+      window.location.reload();
+    } catch (error) {
       if (btn) btn.disabled = false;
-      if (st) st.textContent = label("Could not delete case.", "Nem sikerült törölni az esetet.");
-      return;
+      const detail = error?.message ? ` (${error.message})` : "";
+      setStatus(`Could not delete case${detail}.`, `Nem sikerült törölni az esetet${detail}.`, true);
+      console.warn("Inline case delete failed", error);
     }
+  }
 
-    window.location.reload();
+  function scheduleSave(delay = SAVE_DELAY_MS) {
+    clearTimeout(window.__iceTimer);
+    window.__iceTimer = setTimeout(saveSelected, delay);
   }
 
   function wireUi() {
@@ -252,17 +316,19 @@ window.BACH_SBO_CONFIG = {
       const el = document.getElementById(id);
       if (!el || el.dataset.iceWired === "true") return;
       el.dataset.iceWired = "true";
+
       const handler = () => {
         const yob = document.getElementById("iceYob");
         const age = document.getElementById("iceAge");
         const arrival = document.getElementById("iceArrival");
         if (id === "iceYob" && age && yob) age.value = ageFromYob(yob.value);
         document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (arrival?.value || "") !== "other");
-        clearTimeout(window.__iceTimer);
-        window.__iceTimer = setTimeout(saveSelected, 500);
+        scheduleSave(id === "iceYob" || id === "fMainComplaint" ? SAVE_DELAY_MS : 100);
       };
+
       el.addEventListener("input", handler);
       el.addEventListener("change", handler);
+      el.addEventListener("blur", () => scheduleSave(50));
     });
 
     const del = document.getElementById("iceDeleteCase");
@@ -282,11 +348,12 @@ window.BACH_SBO_CONFIG = {
 
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
-      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); }, 80);
+      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); }, 120);
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-    document.addEventListener("click", () => setTimeout(loadSelected, 80), true);
-    setInterval(ensureUi, 1000);
-    setTimeout(loadSelected, 500);
+
+    document.addEventListener("click", () => setTimeout(() => loadSelected({ force: true }), 100), true);
+    setInterval(ensureUi, 1200);
+    setTimeout(() => loadSelected({ force: true }), 600);
   }
 
   if (document.readyState === "loading") {
