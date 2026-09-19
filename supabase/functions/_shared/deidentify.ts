@@ -89,15 +89,8 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.dob += r.count;
 
-  // Hungarian/international phone-like values, requiring at least 7 digits.
-  r = replaceCount(
-    text,
-    /(?<!\w)(?:\+?36[\s-]?)?(?:\(?\d{1,2}\)?[\s/-]?)?\d{3}[\s-]?\d{3,4}(?!\w)/g,
-    ("" as unknown) as string,
-  );
-  // The broad phone pattern can overlap numbers with clinical meaning. Only redact
-  // matches containing phone context in the second pass below, so restore this pass.
-  // Kept as a no-op placeholder for documentation; actual context-aware rule follows.
+  // Phone numbers are redacted only when explicitly labelled, to avoid
+  // deleting laboratory values or other clinically meaningful numbers.
 
   r = replaceCount(
     text,
