@@ -200,6 +200,34 @@ window.BACH_SBO_CONFIG = {
     st.style.color = isError ? "#b91c1c" : "";
   }
 
+  function clearInlineDetails(nextCaseId = "") {
+    const sex = document.getElementById("iceSex");
+    const yob = document.getElementById("iceYob");
+    const age = document.getElementById("iceAge");
+    const arrival = document.getElementById("iceArrival");
+    const arrivalOther = document.getElementById("iceArrivalOther");
+    const arrivalOtherWrap = document.getElementById("iceArrivalOtherWrap");
+    const discharge = document.getElementById("fDischargeCondition");
+    if (sex) { sex.value = ""; paintSexSelect(sex); }
+    if (yob) yob.value = "";
+    if (age) age.value = "";
+    if (arrival) arrival.value = "";
+    if (arrivalOther) arrivalOther.value = "";
+    arrivalOtherWrap?.classList.add("hidden");
+    if (discharge) discharge.value = "";
+    lastLoadedCaseId = "";
+    const host = document.getElementById("inlineCaseEditor");
+    if (host) {
+      host.dataset.pendingCaseId = nextCaseId || "";
+      host.dataset.loadedCaseId = "";
+    }
+  }
+
+  function inlineDetailsLoadedFor(caseId) {
+    const host = document.getElementById("inlineCaseEditor");
+    return Boolean(caseId && host?.dataset.loadedCaseId === caseId && lastLoadedCaseId === caseId);
+  }
+
   function dischargeConditionTextFromStored(value) {
     const text = String(value || "").trim();
     return text.startsWith(DISCHARGE_PREFIX) ? text.slice(DISCHARGE_PREFIX.length).trim() : text;
@@ -346,6 +374,12 @@ window.BACH_SBO_CONFIG = {
     if (!ensureUi()) return;
     const id = selectedId();
     if (!id) return;
+
+    const host = document.getElementById("inlineCaseEditor");
+    if (host && host.dataset.pendingCaseId !== id && host.dataset.loadedCaseId !== id) {
+      clearInlineDetails(id);
+    }
+
     if (!force) {
       if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
       if (Date.now() - lastSaveFailedAt < 3000) return;
@@ -373,6 +407,10 @@ window.BACH_SBO_CONFIG = {
       }
       ensureDischargeConditionUi();
       lastLoadedCaseId = id;
+      if (host) {
+        host.dataset.pendingCaseId = id;
+        host.dataset.loadedCaseId = id;
+      }
       enhanceSexUi();
     } catch (error) {
       console.warn("Inline case load failed", error);
@@ -416,10 +454,27 @@ window.BACH_SBO_CONFIG = {
     return { payload, partialYob };
   }
 
+  function mergeDischargeConditionIntoPatient(patient) {
+    if (!patient) return;
+    if ((document.getElementById("fDisposition")?.value || "") === "discharged") {
+      const discharge = getDischargeCondition();
+      patient.disposition = "discharged";
+      patient.otherDetails = discharge ? `${DISCHARGE_PREFIX}${discharge}` : "";
+    }
+  }
+
   function mergeInlineDetailsIntoPatient(patient) {
     if (!patient || patient.id !== selectedId()) return patient;
     if (!ensureUi()) return patient;
     repairPatientLocalId(patient);
+    mergeDischargeConditionIntoPatient(patient);
+
+    // Important: do not copy stale inline-editor values into a newly created or newly selected case.
+    // The editor must first load that exact case from the database.
+    if (!inlineDetailsLoadedFor(patient.id)) {
+      return patient;
+    }
+
     const { payload, partialYob } = buildPayload();
     if (partialYob) {
       setStatus("Enter a 4-digit birth year before saving or generating.", "Mentés vagy generálás előtt adjon meg 4 jegyű születési évet.", true);
@@ -481,6 +536,7 @@ window.BACH_SBO_CONFIG = {
   async function saveSelected() {
     const id = selectedId();
     if (!id) return;
+    if (!inlineDetailsLoadedFor(id)) return;
     const { payload, partialYob } = buildPayload();
     if (partialYob) {
       setStatus("Enter a 4-digit birth year between 1900 and current year.", "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.", false);
