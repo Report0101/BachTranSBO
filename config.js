@@ -236,6 +236,70 @@ window.BACH_SBO_CONFIG = {
     return { payload, partialYob };
   }
 
+  function mergeInlineDetailsIntoPatient(patient) {
+    if (!patient || patient.id !== selectedId()) return patient;
+    if (!ensureUi()) return patient;
+
+    const { payload, partialYob } = buildPayload();
+    if (partialYob) {
+      setStatus(
+        "Enter a 4-digit birth year before saving or generating.",
+        "Mentés vagy generálás előtt adjon meg 4 jegyű születési évet.",
+        true
+      );
+      return patient;
+    }
+
+    patient.sex = payload.sex || "";
+    if (Object.prototype.hasOwnProperty.call(payload, "year_of_birth")) {
+      patient.yob = payload.year_of_birth ? String(payload.year_of_birth) : "";
+    }
+    patient.mainComplaint = payload.main_complaint || "";
+    patient.arrivalMode = payload.arrival_mode || "";
+    patient.arrivalOther = payload.arrival_other || "";
+    patient.updatedAt = new Date().toISOString();
+    rowUpdate(payload);
+    return patient;
+  }
+
+  function installBackendPayloadBridge() {
+    const backend = window.BachSBOBackend;
+    if (!backend || backend.__inlineCaseDetailsBridge === true) return false;
+
+    const originalSavePatient = backend.savePatient;
+    if (typeof originalSavePatient === "function") {
+      backend.savePatient = function patchedSavePatient(shiftId, patient) {
+        mergeInlineDetailsIntoPatient(patient);
+        return originalSavePatient.call(this, shiftId, patient);
+      };
+    }
+
+    const originalFinalizePatient = backend.finalizePatient;
+    if (typeof originalFinalizePatient === "function") {
+      backend.finalizePatient = function patchedFinalizePatient(shiftId, patient) {
+        mergeInlineDetailsIntoPatient(patient);
+        return originalFinalizePatient.call(this, shiftId, patient);
+      };
+    }
+
+    const originalSaveState = backend.saveState;
+    if (typeof originalSaveState === "function") {
+      backend.saveState = function patchedSaveState(state) {
+        const id = selectedId();
+        const patients = Array.isArray(state?.patients) ? state.patients : [];
+        const patient = patients.find((item) => item?.id === id);
+        mergeInlineDetailsIntoPatient(patient);
+        return originalSaveState.call(this, state);
+      };
+    }
+
+    Object.defineProperty(backend, "__inlineCaseDetailsBridge", {
+      value: true,
+      configurable: true
+    });
+    return true;
+  }
+
   async function saveSelected() {
     const id = selectedId();
     if (!id) return;
@@ -348,12 +412,12 @@ window.BACH_SBO_CONFIG = {
 
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
-      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); }, 120);
+      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); installBackendPayloadBridge(); }, 120);
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
 
     document.addEventListener("click", () => setTimeout(() => loadSelected({ force: true }), 100), true);
-    setInterval(ensureUi, 1200);
-    setTimeout(() => loadSelected({ force: true }), 600);
+    setInterval(() => { ensureUi(); installBackendPayloadBridge(); }, 1200);
+    setTimeout(() => { loadSelected({ force: true }); installBackendPayloadBridge(); }, 600);
   }
 
   if (document.readyState === "loading") {
