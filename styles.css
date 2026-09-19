@@ -125,8 +125,8 @@ textarea{min-height:92px;resize:vertical}
   border:1px solid #cbd5e1;border-radius:999px;padding:4px 8px;
   background:#fff;font-size:11px;font-weight:850;color:#475569
 }
-.test-grid{display:grid;grid-template-columns:150px 1fr 120px;gap:10px;align-items:start}
-.dynamic-grid{display:grid;grid-template-columns:170px 150px 1fr 120px;gap:10px;align-items:start}
+.test-grid{display:grid;grid-template-columns:minmax(220px,1fr) 120px;gap:10px;align-items:start}
+.dynamic-grid{display:grid;grid-template-columns:170px minmax(220px,1fr) 120px;gap:10px;align-items:start}
 .test-save{align-self:stretch}
 .hidden{display:none!important}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap}
