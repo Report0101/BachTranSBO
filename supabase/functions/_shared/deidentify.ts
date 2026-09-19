@@ -83,7 +83,7 @@ export function ruleBasedDeidentify(input: unknown): {
   // Date of birth only when a birth/DOB label is present. Other clinical dates remain intact.
   r = replaceCount(
     text,
-    /\b(?:sz[uü]l(?:etett|et[eé]si\s*(?:id[oő]|d[aá]tum))?|DOB|date\s+of\s+birth|birth\s+date)\s*[:.-]?\s*(?:19|20)\d{2}[.\/-](?:0?[1-9]|1[0-2])[.\/-](?:0?[1-9]|[12]\d|3[01])\.?/gi,
+    /\b(?:sz[uü]l(?:etett|et[eé]si\s*(?:id[oő]|d[aá]tum))?|DOB|date\s+of\s+birth|birth\s+date)[\s:.-]*(?:19|20)\d{2}\s*[.\/-]\s*(?:0?[1-9]|1[0-2])\s*[.\/-]\s*(?:0?[1-9]|[12]\d|3[01])\.?/gi,
     "[DOB]",
   );
   text = r.text;
@@ -216,11 +216,15 @@ async function aiScrubItems(
     throw new Error("AI de-identification changed item keys; save aborted.");
   }
 
+  const inputByKey = new Map(items.map((x) => [x.key, x.text]));
   let personCount = 0;
   const output = parsed.items.map((x: any) => {
+    const key = String(x.key);
     const text = String(x.text ?? "");
-    personCount += (text.match(/\[PERSON\]/g) || []).length;
-    return { key: String(x.key), text };
+    const before = (inputByKey.get(key)?.match(/\[PERSON\]/g) || []).length;
+    const after = (text.match(/\[PERSON\]/g) || []).length;
+    personCount += Math.max(0, after - before);
+    return { key, text };
   });
 
   return { items: output, personCount };
