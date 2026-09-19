@@ -35,7 +35,18 @@ const I18N = {
     caseSummary:"5. Case summary",
     summaryInfo:"Generate Summary uses the de-identified case and the active SBO Documentation Skill. Review and edit the draft before finalizing.",
     generateSummary:"✨ GENERATE SUMMARY", summaryEditable:"Summary — editable",
-    finalizeSummary:"FINALIZE SUMMARY", saveCase:"SAVE CASE"
+    finalizeSummary:"FINALIZE SUMMARY", saveCase:"SAVE CASE",
+    diagnosesNote:"Doctor-entered diagnoses only. Summary generation must not infer new diagnoses from test results.",
+    learningDesc:"Doctor-approved learning from finalized summaries. Nothing here auto-edits the master Skill.",
+    refresh:"REFRESH", finalizedCorpus:"Finalized corpus", activeSkill:"Active Skill", activeStyle:"Active style",
+    writingStyle:"Writing style", styleDesc:"Generated → Finalized pairs. Candidate requires explicit activation.",
+    generateCandidate:"GENERATE CANDIDATE", skillSuggestions:"Skill improvement suggestions",
+    skillSuggestionsDesc:"Advisory only. Accepting never modifies Skill versions automatically.",
+    analyzeEdits:"ANALYZE EDITS", adminDesc:"Single-owner account security settings.",
+    account:"Account", accountDesc:"Only the configured owner account can use this app.",
+    changePassword:"Change password", passwordRule:"Minimum 6 characters. No special complexity rule is required by this app.",
+    currentPassword:"Current password", newPassword:"New password", confirmPassword:"Confirm new password",
+    changePasswordButton:"CHANGE PASSWORD", signOut:"SIGN OUT"
   },
   hu: {
     casesNav:"Esetek", aiLearningNav:"AI tanulás", adminNav:"Admin",
@@ -66,7 +77,18 @@ const I18N = {
     caseSummary:"5. Epikrízis",
     summaryInfo:"Az összefoglaló a deidentifikált esetadatokból és az aktív SBO Documentation Skill alapján készül. Véglegesítés előtt ellenőrizze és szükség szerint szerkessze.",
     generateSummary:"✨ ÖSSZEFOGLALÓ GENERÁLÁSA", summaryEditable:"Összefoglaló — szerkeszthető",
-    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE", saveCase:"ESET MENTÉSE"
+    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE", saveCase:"ESET MENTÉSE",
+    diagnosesNote:"Csak az orvos által rögzített diagnózisok. Az összefoglaló nem állíthat fel új diagnózist a vizsgálati eredményekből.",
+    learningDesc:"Orvos által jóváhagyott tanulás a véglegesített összefoglalókból. A rendszer nem módosítja automatikusan a fő Skill-t.",
+    refresh:"FRISSÍTÉS", finalizedCorpus:"Véglegesített korpusz", activeSkill:"Aktív Skill", activeStyle:"Aktív stílus",
+    writingStyle:"Írási stílus", styleDesc:"Generált → véglegesített párok. A jelölt csak külön jóváhagyással aktiválható.",
+    generateCandidate:"JELÖLT GENERÁLÁSA", skillSuggestions:"Skill-fejlesztési javaslatok",
+    skillSuggestionsDesc:"Csak javaslat. Az elfogadás nem módosítja automatikusan a Skill-verziókat.",
+    analyzeEdits:"SZERKESZTÉSEK ELEMZÉSE", adminDesc:"Egyszemélyes fiók biztonsági beállításai.",
+    account:"Fiók", accountDesc:"Az alkalmazást csak a beállított tulajdonosi fiók használhatja.",
+    changePassword:"Jelszó módosítása", passwordRule:"Legalább 6 karakter. Az alkalmazás nem ír elő további összetettségi szabályt.",
+    currentPassword:"Jelenlegi jelszó", newPassword:"Új jelszó", confirmPassword:"Új jelszó megerősítése",
+    changePasswordButton:"JELSZÓ MÓDOSÍTÁSA", signOut:"KIJELENTKEZÉS"
   }
 };
 
