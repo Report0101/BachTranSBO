@@ -205,6 +205,15 @@ function normalizeRadiologyEntry(entry) {
   if (entry.bodyPart === undefined) entry.bodyPart = "";
   if (entry.modality === undefined) entry.modality = "";
   if (entry.otherTest === undefined) entry.otherTest = "";
+
+  const legacyModality = String(entry.modality || "").trim().toLowerCase();
+  if (["ultrahang", "uh", "ultrasound"].includes(legacyModality)) {
+    entry.modality = "US";
+  }
+  if (["kontrasztos ct", "contrast ct", "ct contrast"].includes(legacyModality)) {
+    entry.modality = "Contrast CT";
+  }
+
   if (!entry.bodyPart && !entry.modality && !entry.otherTest && (entry.type || "").trim()) {
     entry.modality = "other";
     entry.otherTest = (entry.type || "").trim();
@@ -225,6 +234,126 @@ function entryStatus(entry) {
   if (entry.mode === "notordered") return "notordered";
   if ((entry.text || "").trim()) return "result";
   return "waiting";
+}
+
+const NARRATIVE_FIELDS = {
+  complaint: {
+    inputId: "fComplaint",
+    valueProp: "complaint",
+    skipProp: "complaintSkipped",
+    labelKey: "complaint"
+  },
+  history: {
+    inputId: "fHistory",
+    valueProp: "history",
+    skipProp: "historySkipped",
+    labelKey: "patientHistory"
+  },
+  physical: {
+    inputId: "fPhysical",
+    valueProp: "physical",
+    skipProp: "physicalSkipped",
+    labelKey: "physicalExam"
+  },
+  therapy: {
+    inputId: "fTherapy",
+    valueProp: "therapy",
+    skipProp: "therapySkipped",
+    labelKey: "therapy"
+  },
+  course: {
+    inputId: "fCourse",
+    valueProp: "course",
+    skipProp: "courseSkipped",
+    labelKey: "clinicalCourse"
+  }
+};
+
+function narrativeStatus(patient, key) {
+  const config = NARRATIVE_FIELDS[key];
+  if (!config || !patient) return "waiting";
+  if (patient[config.skipProp]) return "none";
+  if (String(patient[config.valueProp] || "").trim()) return "result";
+  return "waiting";
+}
+
+function narrativeWaitingLabels(patient) {
+  return Object.entries(NARRATIVE_FIELDS)
+    .filter(([key]) => narrativeStatus(patient, key) === "waiting")
+    .map(([, config]) => t(config.labelKey));
+}
+
+function workflowBlockers(patient) {
+  return [...narrativeWaitingLabels(patient), ...waitingLabels(patient)];
+}
+
+function refreshNarrativeField(patient, key) {
+  const config = NARRATIVE_FIELDS[key];
+  if (!config || !patient) return;
+
+  const wrapper = document.querySelector(`[data-narrative-field="${key}"]`);
+  const input = document.getElementById(config.inputId);
+  const stateEl = document.querySelector(`[data-field-state="${key}"]`);
+  const noneButton = document.querySelector(`[data-none-toggle="${key}"]`);
+  if (!wrapper || !input || !stateEl || !noneButton) return;
+
+  const status = narrativeStatus(patient, key);
+  wrapper.classList.remove("waiting", "result", "none");
+  wrapper.classList.add(status);
+
+  stateEl.className = `field-state ${status}`;
+  stateEl.textContent = status === "result"
+    ? t("complete")
+    : status === "none"
+    ? t("none")
+    : t("required");
+
+  noneButton.classList.toggle("active", status === "none");
+  input.disabled = status === "none" || isCompleted(patient);
+  noneButton.disabled = isCompleted(patient);
+}
+
+function refreshNarrativeFields(patient) {
+  Object.keys(NARRATIVE_FIELDS).forEach((key) => refreshNarrativeField(patient, key));
+}
+
+function wireNarrativeFields(patient) {
+  Object.entries(NARRATIVE_FIELDS).forEach(([key, config]) => {
+    const input = document.getElementById(config.inputId);
+    const noneButton = document.querySelector(`[data-none-toggle="${key}"]`);
+    if (!input || !noneButton) return;
+
+    input.oninput = () => {
+      patient[config.valueProp] = input.value;
+      if (input.value.trim()) patient[config.skipProp] = false;
+      persist();
+      refreshNarrativeField(patient, key);
+      updateStatusCell(patient);
+      refreshSummaryControls(patient);
+    };
+
+    noneButton.onclick = () => {
+      if (isCompleted(patient)) return;
+
+      const turningOn = !patient[config.skipProp];
+      if (turningOn && String(patient[config.valueProp] || "").trim()) {
+        flash(uiLang === "hu"
+          ? "A NINCS állapot előtt törölje a mező tartalmát."
+          : "Clear the field before marking it None.");
+        return;
+      }
+
+      patient[config.skipProp] = turningOn;
+      if (turningOn) {
+        patient[config.valueProp] = "";
+        input.value = "";
+      }
+      persist();
+      refreshNarrativeField(patient, key);
+      updateStatusCell(patient);
+      refreshSummaryControls(patient);
+    };
+  });
 }
 
 function patientTestEntries(patient) {
@@ -252,7 +381,7 @@ function refreshSummaryControls(patient) {
   const gate = document.getElementById("summaryGate");
   if (!generate || !finalize || !gate || !patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   const blocked = blockers.length > 0;
   const completed = isCompleted(patient);
   const message = completed
