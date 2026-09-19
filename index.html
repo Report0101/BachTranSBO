@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co wss://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" />
   <title>ER Command Center</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -18,7 +21,8 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="nav-title">Workspace</div>
-      <button class="nav-item active">Patients <span>●</span></button>
+      <button class="nav-item active" id="patientsNav">Patients <span>●</span></button>
+      <button class="nav-item" id="aiLearningNav">AI Learning <span>β</span></button>
       <div class="nav-title">Future modules</div>
       <button class="nav-item disabled">Analytics <span>PLANNED</span></button>
       <button class="nav-item disabled">Archive <span>PLANNED</span></button>
@@ -106,7 +110,7 @@
             <div class="card-b">
               <div id="noPatientSelected" class="subtle">No patient selected.</div>
 
-              <form id="patientForm" class="hidden" onsubmit="return false">
+              <form id="patientForm" class="hidden">
                 <div class="section">
                   <div class="section-title">1. Clinical</div>
                   <div class="field">
@@ -241,7 +245,7 @@
                 <div class="section">
                   <div class="section-title">5. Case summary</div>
                   <div class="info-bar">
-                    <b>Generate Summary</b> sẽ dùng Summary Skill ở backend (cài sau).
+                    <b>Generate Summary</b> dùng de-identified case + active SBO Documentation Skill ở backend.
                     User có thể chỉnh sửa trước khi Finalize.
                   </div>
                   <div class="summary-actions">
@@ -265,10 +269,74 @@
           </div>
         </div>
       </section>
+
+      <section id="aiLearningView" class="hidden">
+        <div class="learning-head">
+          <div>
+            <h1>AI Learning</h1>
+            <div class="subtle">
+              Doctor-approved learning from Finalized Summaries. Nothing here auto-edits the master Skill.
+            </div>
+          </div>
+          <button class="btn" id="refreshLearningBtn" type="button">REFRESH</button>
+        </div>
+
+        <div class="learning-metrics">
+          <div class="card learning-metric">
+            <div class="subtle">Finalized corpus</div>
+            <div class="learning-number" id="learningFinalizedCount">—</div>
+          </div>
+          <div class="card learning-metric">
+            <div class="subtle">Active Skill</div>
+            <div class="learning-number small" id="learningActiveSkill">—</div>
+          </div>
+          <div class="card learning-metric">
+            <div class="subtle">Active style</div>
+            <div class="learning-number small" id="learningActiveStyle">—</div>
+          </div>
+        </div>
+
+        <div id="learningMessage" class="info-bar hidden"></div>
+
+        <div class="learning-grid">
+          <div class="card">
+            <div class="card-h">
+              <div>
+                <h3>Writing style</h3>
+                <div class="subtle">Generated → Finalized pairs. Candidate requires explicit activation.</div>
+              </div>
+              <button class="btn primary small" id="generateStyleBtn" type="button">
+                GENERATE CANDIDATE
+              </button>
+            </div>
+            <div class="card-b" id="styleProfilesList">
+              <div class="subtle">Loading…</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div>
+                <h3>Skill improvement suggestions</h3>
+                <div class="subtle">Advisory only. Accepting never modifies Skill versions automatically.</div>
+              </div>
+              <button class="btn primary small" id="generateSkillSuggestionBtn" type="button">
+                ANALYZE EDITS
+              </button>
+            </div>
+            <div class="card-b" id="skillSuggestionsList">
+              <div class="subtle">Loading…</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
   <div id="modalHost"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
+  <script src="config.js"></script>
+  <script src="backend.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

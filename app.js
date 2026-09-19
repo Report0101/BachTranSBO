@@ -1,30 +1,56 @@
-const STORAGE_KEY = "er_command_center_v6";
-const RETENTION_DAYS = 15;
-
-let state = loadState();
+let state = defaultState();
 let selectedPatientId = null;
+let backendReady = false;
+let currentUser = null;
+let stateDirty = false;
+let currentView = "patients";
 
 function defaultState() {
   return { shift: null, patients: [], references: [] };
 }
 
-function loadState() {
-  try {
-    return purgeExpired(JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultState());
-  } catch {
-    return defaultState();
-  }
-}
-
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Privacy-aware backend writes are intentionally explicit rather than
+  // running on every keystroke. This only marks the in-memory state dirty.
+  stateDirty = true;
 }
 
-function purgeExpired(s) {
-  const cutoff = Date.now() - RETENTION_DAYS * 86400000;
-  s.patients = (s.patients || []).filter((p) => new Date(p.createdAt).getTime() >= cutoff);
-  s.references = (s.references || []).filter((r) => new Date(r.createdAt).getTime() >= cutoff);
-  return s;
+async function persistNow() {
+  if (!backendReady || !state.shift) return { removed: 0, report: null };
+
+  const patient = patientById(selectedPatientId);
+  if (!patient) {
+    stateDirty = false;
+    return { removed: 0, report: null };
+  }
+
+  const result = await window.BachSBOBackend.savePatient(
+    state.shift.id,
+    patient
+  );
+  stateDirty = false;
+
+  if (result?.patient?.id === patient.id) {
+    Object.assign(patient, result.patient);
+
+    // The browser form is updated to the same de-identified representation
+    // that was permanently stored. Raw identifiers are not kept as the
+    // operational in-memory version after an explicit save.
+    if (currentView === "patients" && selectedPatientId === patient.id) {
+      loadPatientForm();
+    }
+  }
+
+  if (result?.removed > 0) {
+    flash(`Privacy filter removed ${result.removed} identifier(s).`);
+  }
+
+  return result;
+}
+
+function handleBackendError(error) {
+  console.error(error);
+  flash("Backend error: " + (error?.message || "Unknown error"));
 }
 
 function nowIso() {
@@ -57,7 +83,13 @@ function isCompleted(patient) {
 }
 
 function newEntry(type = "") {
-  return { type, mode: "waiting", text: "", savedText: "" };
+  return {
+    id: crypto.randomUUID(),
+    type,
+    mode: "waiting",
+    text: "",
+    savedText: ""
+  };
 }
 
 function entryStatus(entry) {
@@ -107,6 +139,8 @@ function renderHeader() {
 
   if (!state.shift) {
     meta.innerHTML = '<span class="metric">No active shift</span>';
+    actions.innerHTML = '<button class="btn" id="signOutBtn">SIGN OUT</button>';
+    document.getElementById("signOutBtn").onclick = signOut;
     return;
   }
 
@@ -121,17 +155,40 @@ function renderHeader() {
     <span class="metric">Completed <b>${completed}</b></span>
   `;
 
-  actions.innerHTML = '<button class="btn danger" id="endShiftBtn">END SHIFT</button>';
+  actions.innerHTML =
+    '<button class="btn danger" id="endShiftBtn">END SHIFT</button>' +
+    '<button class="btn" id="signOutBtn">SIGN OUT</button>';
   document.getElementById("endShiftBtn").onclick = endShiftStep1;
+  document.getElementById("signOutBtn").onclick = signOut;
 }
 
 function renderApp() {
   renderHeader();
 
+  const learning = currentView === "learning";
+  document.getElementById("patientsNav").classList.toggle("active", !learning);
+  document.getElementById("aiLearningNav").classList.toggle("active", learning);
+  document.getElementById("aiLearningView").classList.toggle("hidden", !learning);
+
+  if (learning) {
+    document.getElementById("noShiftView").classList.add("hidden");
+    document.getElementById("patientsView").classList.add("hidden");
+    return;
+  }
+
   document.getElementById("noShiftView").classList.toggle("hidden", Boolean(state.shift));
   document.getElementById("patientsView").classList.toggle("hidden", !state.shift);
 
   if (state.shift) renderPatients();
+}
+
+function setView(view) {
+  currentView = view;
+  renderApp();
+
+  if (view === "learning") {
+    renderLearningDashboard().catch(handleBackendError);
+  }
 }
 
 function renderPatients() {
@@ -194,7 +251,7 @@ function updateStatusCell(patient) {
     : '<span class="wait-none">—</span>';
 }
 
-function addPatient() {
+async function addPatient() {
   if (!state.shift) return;
 
   const sex = document.getElementById("newSex").value;
@@ -235,6 +292,7 @@ function addPatient() {
     otherOutcome: "",
     otherDetails: "",
     summary: "",
+    summaryGeneratedText: "",
     summaryGeneratedAt: null,
     summaryFinalizedText: "",
     summaryFinalizedAt: null,
@@ -250,6 +308,12 @@ function addPatient() {
   document.getElementById("newSex").value = "";
   document.getElementById("newYob").value = "";
   document.getElementById("newComplaint").value = "";
+
+  try {
+    await persistNow();
+  } catch (error) {
+    handleBackendError(error);
+  }
 
   renderApp();
 }
@@ -470,14 +534,19 @@ function wireCard(card, entry, key) {
     }
   };
 
-  save.onclick = () => {
+  save.onclick = async () => {
     if (!entry.text.trim()) return;
 
     entry.savedText = entry.text;
     entry.mode = "waiting";
-    persist();
     refreshVisual();
-    flash("Result saved.");
+
+    try {
+      await persistNow();
+      flash("Result saved.");
+    } catch (error) {
+      handleBackendError(error);
+    }
   };
 }
 
@@ -538,13 +607,17 @@ function collectForm() {
   return patient;
 }
 
-function savePatient() {
+async function savePatient() {
   const patient = collectForm();
   if (!patient) return;
 
-  persist();
-  renderApp();
-  flash("Patient saved.");
+  try {
+    await persistNow();
+    renderApp();
+    flash("Patient saved.");
+  } catch (error) {
+    handleBackendError(error);
+  }
 }
 
 function updateDispositionVisibility() {
@@ -609,99 +682,46 @@ function addRecommendation() {
   renderRecommendations(patient);
 }
 
-function buildMockSummary(patient) {
-  const out = [
-    `${patient.sex}, ${ageFromYob(patient.yob)} years, ${patient.mainComplaint}.`
-  ];
-
-  if (patient.complaint) out.push(patient.complaint.trim());
-  if (patient.history) out.push(`History: ${patient.history.trim()}`);
-  if (patient.physical) out.push(`Status: ${patient.physical.trim()}`);
-
-  patient.tests.labs.forEach((entry, i) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`Lab ${i + 1}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`Lab ${i + 1}: waiting for result.`);
-    }
-  });
-
-  [
-    ["EKG", patient.tests.ekg],
-    [/\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG", patient.tests.gas]
-  ].forEach(([label, entry]) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  patient.tests.radiology.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Radiology ${i + 1}`;
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  patient.tests.consultations.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Consultation ${i + 1}`;
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  if (patient.therapy) out.push(`Therapy: ${patient.therapy.trim()}`);
-  if (patient.course) out.push(`Course: ${patient.course.trim()}`);
-
-  if (patient.disposition === "discharged") {
-    out.push("Final decision: discharged.");
-
-    const recs = (patient.recommendations || []).filter(Boolean);
-    if (recs.length) out.push("Plan: " + recs.join("; "));
-  } else if (patient.disposition === "admitted") {
-    let line = "Final decision: admitted/submitted";
-
-    if (patient.ward) line += ` to ${patient.ward}`;
-    if (patient.hospital) line += ` at ${patient.hospital}`;
-    if (patient.physician) line += ` under ${patient.physician}`;
-
-    out.push(line + ".");
-
-    if (patient.admissionNote) out.push(patient.admissionNote.trim());
-  } else if (patient.disposition === "other") {
-    out.push(`Final decision: ${patient.otherOutcome || "other"}.`);
-
-    if (patient.otherDetails) out.push(patient.otherDetails.trim());
-  }
-
-  return out.join("\n");
-}
-
-function generateSummary() {
+async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  patient.summary = buildMockSummary(patient);
-  patient.summaryGeneratedAt = nowIso();
+  const button = document.getElementById("generateSummaryBtn");
+  const oldLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "GENERATING…";
 
-  persist();
+  try {
+    // Persist first so the AI only sees the de-identified database copy.
+    await persistNow();
 
-  document.getElementById("fSummary").value = patient.summary;
-  renderSummaryStatus(patient);
-  flash("Summary generated (mock backend skill).");
+    const result = await window.BachSBOBackend.generateSummary(patient.id);
+
+    patient.summary = result.summary || "";
+    patient.summaryGeneratedText = patient.summary;
+    patient.summaryGeneratedAt = result.generatedAt || nowIso();
+    patient.summaryModel = result.model || "";
+    patient.summarySkillVersion = result.skillVersion || "";
+
+    document.getElementById("fSummary").value = patient.summary;
+    renderSummaryStatus(patient);
+
+    const skillSuffix = result.skillVersion
+      ? ` • Skill v${result.skillVersion}`
+      : "";
+    const retrievalCount = Array.isArray(result.similarCasesUsed)
+      ? result.similarCasesUsed.length
+      : 0;
+    const retrievalSuffix = retrievalCount
+      ? ` • ${retrievalCount} similar case(s)`
+      : "";
+    flash(`Summary generated${skillSuffix}${retrievalSuffix}.`);
+  } catch (error) {
+    handleBackendError(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = oldLabel;
+  }
 }
 
 async function finalizeSummary() {
@@ -719,19 +739,35 @@ async function finalizeSummary() {
   patient.summaryFinalizedAt = nowIso();
   patient.updatedAt = nowIso();
 
-  state.references.push({
-    id: crypto.randomUUID(),
-    patientId: patient.id,
-    shiftId: patient.shiftId,
-    text,
-    createdAt: nowIso(),
-    source: "finalized_summary"
-  });
+  try {
+    await persistNow();
+    const revisionResult =
+      await window.BachSBOBackend.appendSummaryRevision(patient);
 
-  persist();
+    if (revisionResult?.patient?.id === patient.id) {
+      Object.assign(patient, revisionResult.patient);
+      document.getElementById("fSummary").value =
+        patient.summaryFinalizedText || patient.summary || "";
+    }
+
+    if (revisionResult?.removed > 0) {
+      flash(
+        `Privacy filter removed ${revisionResult.removed} identifier(s) from finalized corpus.`
+      );
+    }
+    if (revisionResult?.embeddingWarning) {
+      flash("Summary saved; similar-case embedding will need retry.");
+    }
+  } catch (error) {
+    handleBackendError(error);
+    return;
+  }
+
+  const clipboardText =
+    patient.summaryFinalizedText || patient.summary || text;
 
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(clipboardText);
     flash("Summary finalized and copied to clipboard.");
   } catch {
     flash("Summary finalized. Clipboard unavailable.");
@@ -758,19 +794,16 @@ function renderSummaryStatus(patient) {
     : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
 }
 
-function startShift() {
+async function startShift() {
   if (state.shift) return;
 
-  state.shift = {
-    id: crypto.randomUUID(),
-    startedAt: nowIso(),
-    status: "active"
-  };
-
-  selectedPatientId = null;
-
-  persist();
-  renderApp();
+  try {
+    state.shift = await window.BachSBOBackend.startShift();
+    selectedPatientId = null;
+    renderApp();
+  } catch (error) {
+    handleBackendError(error);
+  }
 }
 
 function endShiftStep1() {
@@ -808,13 +841,23 @@ function endShiftStep2() {
     endFinal.disabled = input.value !== "END";
   };
 
-  endFinal.onclick = () => {
-    state.shift = null;
-    selectedPatientId = null;
+  endFinal.onclick = async () => {
+    const closingShiftId = state.shift?.id;
+    if (!closingShiftId) return;
 
-    persist();
-    closeModal();
-    renderApp();
+    endFinal.disabled = true;
+
+    try {
+      await persistNow();
+      await window.BachSBOBackend.closeShift(closingShiftId);
+      state = defaultState();
+      selectedPatientId = null;
+      closeModal();
+      renderApp();
+    } catch (error) {
+      endFinal.disabled = false;
+      handleBackendError(error);
+    }
   };
 }
 
@@ -831,6 +874,274 @@ function modal(inner) {
 
 function closeModal() {
   document.getElementById("modalHost").innerHTML = "";
+}
+
+function learningMessage(message, isError = false) {
+  const el = document.getElementById("learningMessage");
+  if (!message) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+
+  el.textContent = message;
+  el.classList.remove("hidden");
+  el.style.borderColor = isError ? "#fecaca" : "";
+  el.style.background = isError ? "#fef2f2" : "";
+  el.style.color = isError ? "#991b1b" : "";
+}
+
+function renderStyleProfiles(profiles) {
+  const host = document.getElementById("styleProfilesList");
+  if (!profiles.length) {
+    host.innerHTML =
+      '<div class="subtle">No style profile yet. Finalize at least 5 cases, then generate a candidate.</div>';
+    return;
+  }
+
+  host.innerHTML = profiles.map((profile) => `
+    <div class="learning-item">
+      <div class="learning-item-head">
+        <b>Style v${esc(profile.version)}</b>
+        <span class="badge ${profile.is_active ? "done" : "pending"}">
+          ${profile.is_active ? "ACTIVE" : "CANDIDATE"}
+        </span>
+      </div>
+      <div class="subtle">
+        ${profile.source_revision_count || 0} finalized pairs
+        ${profile.model ? ` • ${esc(profile.model)}` : ""}
+      </div>
+      <div class="learning-text">${esc(profile.profile_text || "")}</div>
+      ${
+        profile.is_active
+          ? ""
+          : `<div class="learning-actions">
+              <button class="btn success small" data-activate-style="${profile.id}">
+                ACTIVATE
+              </button>
+            </div>`
+      }
+    </div>
+  `).join("");
+
+  host.querySelectorAll("[data-activate-style]").forEach((button) => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await window.BachSBOBackend.activateStyle(
+          button.dataset.activateStyle
+        );
+        learningMessage("Writing style activated.");
+        await renderLearningDashboard();
+      } catch (error) {
+        learningMessage(error?.message || "Style activation failed.", true);
+      } finally {
+        button.disabled = false;
+      }
+    };
+  });
+}
+
+function renderSkillSuggestions(suggestions) {
+  const host = document.getElementById("skillSuggestionsList");
+  if (!suggestions.length) {
+    host.innerHTML =
+      '<div class="subtle">No Skill suggestions yet. At least 10 Generated → Finalized pairs are required.</div>';
+    return;
+  }
+
+  host.innerHTML = suggestions.map((item) => `
+    <div class="learning-item">
+      <div class="learning-item-head">
+        <b>Based on Skill v${esc(item.base_skill_version)}</b>
+        <span class="badge ${esc(item.status)}">${esc(String(item.status).toUpperCase())}</span>
+      </div>
+      <div class="subtle">
+        ${item.source_revision_count || 0} finalized pairs
+        ${item.model ? ` • ${esc(item.model)}` : ""}
+      </div>
+      <div class="learning-text">${esc(item.suggestion_text || "")}</div>
+      ${
+        item.status === "pending"
+          ? `<div class="learning-actions">
+              <button class="btn success small" data-skill-review="${item.id}" data-decision="accepted">
+                ACCEPT FOR FOLLOW-UP
+              </button>
+              <button class="btn small" data-skill-review="${item.id}" data-decision="rejected">
+                REJECT
+              </button>
+            </div>
+            <div class="footer-note">Accepting does not change the master Skill automatically.</div>`
+          : ""
+      }
+    </div>
+  `).join("");
+
+  host.querySelectorAll("[data-skill-review]").forEach((button) => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const result = await window.BachSBOBackend.reviewSkillSuggestion(
+          button.dataset.skillReview,
+          button.dataset.decision
+        );
+        learningMessage(result?.note || "Suggestion reviewed.");
+        await renderLearningDashboard();
+      } catch (error) {
+        learningMessage(error?.message || "Suggestion review failed.", true);
+      } finally {
+        button.disabled = false;
+      }
+    };
+  });
+}
+
+async function renderLearningDashboard() {
+  if (!backendReady) return;
+
+  learningMessage("");
+  const overview = await window.BachSBOBackend.getLearningOverview();
+
+  document.getElementById("learningFinalizedCount").textContent =
+    String(overview.finalizedCount || 0);
+
+  document.getElementById("learningActiveSkill").textContent =
+    overview.activeSkill
+      ? `${overview.activeSkill.name || "SBO Skill"} v${overview.activeSkill.version}`
+      : "Not configured";
+
+  const activeStyle = (overview.styleProfiles || []).find((x) => x.is_active);
+  document.getElementById("learningActiveStyle").textContent =
+    activeStyle ? `v${activeStyle.version}` : "None";
+
+  renderStyleProfiles(overview.styleProfiles || []);
+  renderSkillSuggestions(overview.skillSuggestions || []);
+
+  const styleButton = document.getElementById("generateStyleBtn");
+  const skillButton = document.getElementById("generateSkillSuggestionBtn");
+
+  styleButton.disabled = (overview.finalizedCount || 0) < 5;
+  skillButton.disabled = (overview.finalizedCount || 0) < 10;
+}
+
+async function generateStyleCandidate() {
+  const button = document.getElementById("generateStyleBtn");
+  button.disabled = true;
+  const old = button.textContent;
+  button.textContent = "ANALYZING…";
+
+  try {
+    const result = await window.BachSBOBackend.analyzeStyle();
+    learningMessage(
+      `Style candidate v${result?.candidate?.version || "?"} created. Review it before activation.`
+    );
+    await renderLearningDashboard();
+  } catch (error) {
+    learningMessage(error?.message || "Style analysis failed.", true);
+  } finally {
+    button.textContent = old;
+  }
+}
+
+async function generateSkillSuggestion() {
+  const button = document.getElementById("generateSkillSuggestionBtn");
+  button.disabled = true;
+  const old = button.textContent;
+  button.textContent = "ANALYZING…";
+
+  try {
+    await window.BachSBOBackend.analyzeSkill();
+    learningMessage(
+      "Pending Skill suggestion created. It will not change the active Skill."
+    );
+    await renderLearningDashboard();
+  } catch (error) {
+    learningMessage(error?.message || "Skill analysis failed.", true);
+  } finally {
+    button.textContent = old;
+  }
+}
+
+async function signOut() {
+  try {
+    await window.BachSBOBackend.signOut();
+    state = defaultState();
+    selectedPatientId = null;
+    backendReady = false;
+    window.location.reload();
+  } catch (error) {
+    handleBackendError(error);
+  }
+}
+
+function showSetupRequired() {
+  modal(`
+    <h3>Backend setup required</h3>
+    <p>This branch uses Supabase instead of browser clinical-data storage.</p>
+    <p>Configure <code>config.js</code>, apply both Supabase migrations, deploy <code>clinical-store</code>, and set its AI privacy secret.</p>
+    <p class="subtle">See docs/BACKEND_SETUP.md and docs/PRIVACY.md.</p>
+  `);
+}
+
+function showSignIn() {
+  modal(`
+    <h3>Sign in</h3>
+    <p>Enter the email for your personal BachTranSBO account.</p>
+    <div class="field">
+      <label>Email</label>
+      <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="sendLoginLink">SEND SIGN-IN LINK</button>
+    </div>
+    <div id="authMessage" class="subtle"></div>
+  `);
+
+  const email = document.getElementById("authEmail");
+  const button = document.getElementById("sendLoginLink");
+  const message = document.getElementById("authMessage");
+
+  button.onclick = async () => {
+    if (!email.value.trim()) return;
+    button.disabled = true;
+    message.textContent = "Sending…";
+    try {
+      await window.BachSBOBackend.signInWithOtp(email.value.trim());
+      message.textContent = "Sign-in link sent. Open it in this browser.";
+    } catch (error) {
+      message.textContent = error?.message || "Could not send sign-in link.";
+      button.disabled = false;
+    }
+  };
+}
+
+async function bootstrap() {
+  try {
+    const result = await window.BachSBOBackend.init();
+
+    if (!result.configured) {
+      showSetupRequired();
+      return;
+    }
+
+    if (!result.session) {
+      showSignIn();
+      return;
+    }
+
+    currentUser = result.session.user;
+    state = await window.BachSBOBackend.loadState();
+    backendReady = true;
+    closeModal();
+    renderApp();
+  } catch (error) {
+    console.error(error);
+    modal(`
+      <h3>Backend initialization failed</h3>
+      <p>${esc(error?.message || "Unknown error")}</p>
+      <p class="subtle">Check Supabase configuration and database migration.</p>
+    `);
+  }
 }
 
 function flash(message) {
@@ -859,6 +1170,18 @@ function attr(value) {
   return esc(value).replace(/`/g, "&#096;");
 }
 
+document.getElementById("patientForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+});
+
+document.getElementById("patientsNav").onclick = () => setView("patients");
+document.getElementById("aiLearningNav").onclick = () => setView("learning");
+document.getElementById("refreshLearningBtn").onclick = () =>
+  renderLearningDashboard().catch(handleBackendError);
+document.getElementById("generateStyleBtn").onclick = generateStyleCandidate;
+document.getElementById("generateSkillSuggestionBtn").onclick =
+  generateSkillSuggestion;
+
 document.getElementById("startShiftBtn").onclick = startShift;
 document.getElementById("addPatientBtn").onclick = addPatient;
 document.getElementById("savePatientBtn").onclick = savePatient;
@@ -875,4 +1198,4 @@ document.getElementById("fSummary").addEventListener("input", () => {
   if (patient) renderSummaryStatus(patient);
 });
 
-renderApp();
+bootstrap();

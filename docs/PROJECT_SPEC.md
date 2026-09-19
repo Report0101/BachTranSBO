@@ -59,18 +59,38 @@ After ending a shift:
 - the server-side shift becomes CLOSED,
 - server data is not immediately deleted solely because the shift ended.
 
-## 4. Data retention
+## 4. Permanent storage and privacy
 
-Clinical/patient information must not remain on the server for more than 15 days.
+Clinical cases and finalized summaries are retained permanently as the personal AI learning corpus.
 
-Production backend requirements:
+There is no automatic 15-day deletion rule.
 
-- every patient/shift/reference record has created_at and expires_at,
-- purge all related patient data and generated/finalized summaries when expired,
-- no orphan clinical data may remain after purge,
-- frontend/local caches must also be cleared appropriately.
+The application intentionally does not model direct patient identifiers such as:
 
-The current prototype only demonstrates this with localStorage cleanup.
+- patient name,
+- TAJ,
+- full date of birth,
+- address,
+- phone number,
+- email.
+
+Free-text may nevertheless contain accidental identifiers when copied from another clinical system.
+
+Before real clinical use with permanent storage, all text entering permanent storage must pass through an automatic de-identification layer. The same sanitized representation must be used before text is sent to external AI services.
+
+The de-identification layer should detect at minimum:
+
+- Hungarian TAJ,
+- person names,
+- full dates of birth,
+- phone numbers,
+- email addresses,
+- postal addresses,
+- external/EHR patient identifiers.
+
+Full DOB should preferably be converted to clinically useful age where possible.
+
+Detected raw identifiers must not be retained in a separate database.
 
 ## 5. Import new patient
 
@@ -242,18 +262,29 @@ Button:
 
 - GENERATE SUMMARY
 
-Future production behavior:
+Current implementation:
 
-- sends patient data to the backend Summary Skill,
-- receives generated summary text,
-- inserts text into the editable summary textarea.
+- saves the current case through the privacy-gated backend,
+- reads the de-identified case from PostgreSQL,
+- loads the active backend SBO Documentation Skill version,
+- loads an optional active writing-style profile,
+- generates a draft with GPT in the `generate-summary` Edge Function,
+- stores the original generated draft separately from later doctor edits,
+- inserts the editable working text into the summary textarea.
 
-The current prototype uses deterministic mock generation.
+Current retrieval behavior:
+
+- finalized revisions store a de-identified clinical case snapshot,
+- the snapshot is embedded with the configured embedding model,
+- Generate Summary embeds the current de-identified case,
+- up to four similar finalized cases are retrieved by cosine similarity,
+- retrieved cases are supplied only as style/structure examples,
+- the prompt explicitly forbids copying old patient facts into the current case.
 
 ### Summary textarea
 
-- fully editable by the user,
-- user can revise generated wording before finalization.
+- fully editable by the doctor,
+- edits do not overwrite the original generated draft.
 
 ### Finalize Summary
 
@@ -263,16 +294,20 @@ Button:
 
 On finalize:
 
-1. save the current textarea text as the finalized summary,
-2. copy the finalized text to the clipboard when browser permissions allow,
-3. mark the patient Completed,
-4. send/store the finalized summary as temporary backend reference material.
+1. save the latest sanitized clinical case,
+2. save the original AI-generated draft,
+3. save the doctor-finalized text,
+4. mark the case Completed,
+5. append an immutable finalized-summary revision,
+6. copy the finalized text to the clipboard when browser permissions allow.
 
-If the summary is edited after finalization, the UI shows that it changed and should be finalized again.
+Every finalized revision becomes a doctor-approved example for the permanent AI corpus.
+
+If the summary is edited after finalization, the UI shows that it changed and it should be finalized again.
 
 ## 12. Backend Skill and writing style
 
-Not visible in the operational frontend.
+Skill and writing-style logic is backend-only and is never exposed as editable operational UI.
 
 ### Summary Skill
 
@@ -283,46 +318,59 @@ Defines:
 - what information should be included,
 - formatting and clinical-documentation rules.
 
+The Skill is versioned.
+
 Approved/finalized summaries do not automatically rewrite the Skill.
 
-Skill changes require an explicit backend/admin update workflow.
+The system may analyze repeated doctor edits and create a pending Skill-improvement suggestion, but a new Skill version requires a separate explicit human workflow. Accepting a suggestion never mutates the master Skill automatically.
 
-### Writing style
+Writing-style learning is separate from Skill changes: the backend can generate an inactive style-profile candidate from recent Generated → Finalized pairs. A candidate affects generation only after explicit activation.
 
-Finalized summaries can be used to improve a compact admin writing-style profile.
+### Writing style and retrieval
 
-The system should learn only stylistic patterns such as:
+The permanent corpus consists of:
 
-- preferred sentence length,
-- terminology,
-- concision,
-- chronology,
-- formatting,
-- typical phrasing,
-- abbreviation preferences.
+- de-identified clinical case input,
+- original generated draft,
+- doctor-finalized summary,
+- Skill/model metadata.
 
-It must not learn patient-specific facts as writing style.
+The system may use this corpus to:
 
-Full patient reports/summaries remain subject to the 15-day retention rule.
+- derive a compact writing-style profile,
+- retrieve similar approved cases,
+- compare generated text with finalized text,
+- suggest Skill improvements.
 
-A de-identified/abstract style profile can be retained separately if it contains no patient-specific information.
+Patient-specific facts must not be generalized into the writing-style profile.
 
-## 13. Current frontend prototype storage
+## 13. Backend and persistence
 
-Current static prototype uses browser localStorage only.
+The backend foundation uses Supabase:
 
-This is for UI testing, not production clinical use.
+- Supabase Auth,
+- PostgreSQL,
+- Row Level Security,
+- browser-safe publishable key,
+- permanent storage for shifts/cases/results/summaries.
 
-Production implementation still requires:
+The browser must never receive a Supabase secret/service-role key.
 
-- authentication,
-- authorization,
-- server-side concurrency control for one active shift,
-- persistent backend database,
-- retention enforcement,
-- audit strategy,
-- security review,
-- institutional/GDPR approval where applicable.
+Current backend tables:
+
+- shifts,
+- cases,
+- test_entries,
+- summaries,
+- summary_revisions,
+- skill_versions,
+- style_profiles.
+
+The server database enforces at most one ACTIVE shift per owner.
+
+The application restores the active shift and its cases from the backend after refresh or on another signed-in device.
+
+The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, similar-case retrieval, human-approved writing-style candidate generation, advisory Skill-improvement suggestions, and an AI Learning review dashboard. Deployment verification and broader production hardening remain.
 
 ## 14. Planned modules
 
@@ -345,10 +393,26 @@ Production implementation still requires:
 - Case Summary
 - Save / persistence
 
+### AI Learning module
+
+The operational sidebar includes an AI Learning dashboard that can:
+
+- show finalized corpus size,
+- show the active Skill version,
+- show active/inactive writing-style profiles,
+- generate a style candidate after the minimum finalized-case threshold,
+- explicitly activate a reviewed style profile,
+- generate pending Skill-improvement suggestions,
+- explicitly accept/reject suggestions for human follow-up.
+
+Accepting a Skill suggestion does not change `skill_versions`.
+
 ### Backend-only modules
 
+- De-identification/privacy filter
 - Summary Skill
+- Skill versioning
 - Writing-style profile
-- finalized-summary reference pipeline
-- Skill update workflow
-- retention/purge service
+- Similar-case retrieval / embeddings
+- Finalized-summary corpus
+- Skill update suggestion workflow

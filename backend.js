@@ -1,0 +1,437 @@
+(() => {
+  "use strict";
+
+  let client = null;
+
+  function config() {
+    return window.BACH_SBO_CONFIG || {};
+  }
+
+  function isConfigured() {
+    const c = config();
+    return Boolean(
+      c.supabaseUrl &&
+      c.supabasePublishableKey &&
+      !c.supabaseUrl.includes("YOUR_PROJECT") &&
+      !c.supabasePublishableKey.includes("YOUR_PUBLISHABLE_KEY")
+    );
+  }
+
+  function requireClient() {
+    if (!client) throw new Error("Supabase backend is not initialized.");
+    return client;
+  }
+
+  function assertOk(error, context) {
+    if (error) {
+      const err = new Error(`${context}: ${error.message || "Unknown Supabase error"}`);
+      err.cause = error;
+      throw err;
+    }
+  }
+
+  async function init() {
+    if (!isConfigured()) {
+      return { configured: false, session: null };
+    }
+
+    if (!window.supabase?.createClient) {
+      throw new Error("Supabase JavaScript client failed to load.");
+    }
+
+    const c = config();
+    client = window.supabase.createClient(
+      c.supabaseUrl,
+      c.supabasePublishableKey,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      }
+    );
+
+    const { data, error } = await client.auth.getSession();
+    assertOk(error, "Get auth session");
+
+    return { configured: true, session: data.session };
+  }
+
+  async function getSession() {
+    const { data, error } = await requireClient().auth.getSession();
+    assertOk(error, "Get auth session");
+    return data.session;
+  }
+
+  async function getUser() {
+    const { data, error } = await requireClient().auth.getUser();
+    assertOk(error, "Get authenticated user");
+    if (!data.user) throw new Error("Not authenticated.");
+    return data.user;
+  }
+
+  async function signInWithOtp(email) {
+    const redirectTo =
+      config().authRedirectTo ||
+      window.location.origin + window.location.pathname;
+
+    const { error } = await requireClient().auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo }
+    });
+
+    assertOk(error, "Send sign-in link");
+  }
+
+  async function signOut() {
+    const { error } = await requireClient().auth.signOut();
+    assertOk(error, "Sign out");
+  }
+
+  function blankEntry(type = "") {
+    return {
+      id: crypto.randomUUID(),
+      type,
+      mode: "waiting",
+      text: "",
+      savedText: ""
+    };
+  }
+
+  function rowToEntry(row, defaultType = "") {
+    if (!row) return blankEntry(defaultType);
+    return {
+      id: row.id,
+      type: row.subtype || defaultType,
+      mode: row.mode || "waiting",
+      text: row.result_text || "",
+      savedText: row.saved_result_text || ""
+    };
+  }
+
+  async function getActiveShift() {
+    const db = requireClient();
+    const { data, error } = await db
+      .from("shifts")
+      .select("id, started_at, status")
+      .eq("status", "active")
+      .maybeSingle();
+
+    assertOk(error, "Load active shift");
+    return data;
+  }
+
+  async function startShift() {
+    const db = requireClient();
+    const user = await getUser();
+
+    const existing = await getActiveShift();
+    if (existing) {
+      return {
+        id: existing.id,
+        startedAt: existing.started_at,
+        status: existing.status
+      };
+    }
+
+    const row = {
+      id: crypto.randomUUID(),
+      owner_id: user.id,
+      started_at: new Date().toISOString(),
+      status: "active"
+    };
+
+    const { data, error } = await db
+      .from("shifts")
+      .insert(row)
+      .select("id, started_at, status")
+      .single();
+
+    if (error) {
+      // A partial unique index permits only one ACTIVE shift per owner.
+      // If another device won the race, recover the existing shift.
+      const active = await getActiveShift();
+      if (active) {
+        return {
+          id: active.id,
+          startedAt: active.started_at,
+          status: active.status
+        };
+      }
+      assertOk(error, "Start shift");
+    }
+
+    return {
+      id: data.id,
+      startedAt: data.started_at,
+      status: data.status
+    };
+  }
+
+  async function closeShift(shiftId) {
+    const { error } = await requireClient()
+      .from("shifts")
+      .update({
+        status: "closed",
+        ended_at: new Date().toISOString()
+      })
+      .eq("id", shiftId);
+
+    assertOk(error, "Close shift");
+  }
+
+  async function loadState() {
+    const db = requireClient();
+    await getUser();
+
+    const shiftRow = await getActiveShift();
+    if (!shiftRow) {
+      return { shift: null, patients: [], references: [] };
+    }
+
+    const { data: caseRows, error: caseError } = await db
+      .from("cases")
+      .select("*")
+      .eq("shift_id", shiftRow.id)
+      .order("created_at", { ascending: true });
+
+    assertOk(caseError, "Load cases");
+
+    const caseIds = (caseRows || []).map((x) => x.id);
+    let testRows = [];
+    let summaryRows = [];
+
+    if (caseIds.length) {
+      const testsResult = await db
+        .from("test_entries")
+        .select("*")
+        .in("case_id", caseIds)
+        .order("sequence", { ascending: true });
+
+      assertOk(testsResult.error, "Load test entries");
+      testRows = testsResult.data || [];
+
+      const summariesResult = await db
+        .from("summaries")
+        .select("*")
+        .in("case_id", caseIds);
+
+      assertOk(summariesResult.error, "Load summaries");
+      summaryRows = summariesResult.data || [];
+    }
+
+    const testsByCase = new Map();
+    for (const row of testRows) {
+      if (!testsByCase.has(row.case_id)) testsByCase.set(row.case_id, []);
+      testsByCase.get(row.case_id).push(row);
+    }
+
+    const summariesByCase = new Map(
+      summaryRows.map((row) => [row.case_id, row])
+    );
+
+    const patients = (caseRows || []).map((row) => {
+      const rows = testsByCase.get(row.id) || [];
+      const byCategory = (category) =>
+        rows.filter((x) => x.category === category)
+          .sort((a, b) => a.sequence - b.sequence);
+
+      const labs = byCategory("lab").map((x) => rowToEntry(x));
+      const radiology = byCategory("radiology").map((x) => rowToEntry(x));
+      const consultations = byCategory("consultation").map((x) => rowToEntry(x));
+      const ekg = byCategory("ekg")[0];
+      const gas = byCategory("gas")[0];
+      const summary = summariesByCase.get(row.id);
+
+      return {
+        id: row.id,
+        shiftId: row.shift_id,
+        localId: row.local_id,
+        sex: row.sex || "",
+        yob: row.year_of_birth ? String(row.year_of_birth) : "",
+        mainComplaint: row.main_complaint || "",
+        complaint: row.complaint || "",
+        history: row.history || "",
+        physical: row.physical_exam || "",
+        tests: {
+          labs: labs.length ? labs : [blankEntry()],
+          ekg: rowToEntry(ekg),
+          gas: rowToEntry(gas),
+          radiology: radiology.length ? radiology : [blankEntry("")],
+          consultations: consultations.length ? consultations : [blankEntry("")]
+        },
+        others: row.others || "",
+        therapy: row.therapy || "",
+        course: row.clinical_course || "",
+        disposition: row.disposition || "",
+        recommendations: Array.isArray(row.recommendations)
+          ? row.recommendations
+          : [""],
+        hospital: row.hospital || "",
+        ward: row.ward || "",
+        physician: row.accepting_physician || "",
+        admissionNote: row.admission_note || "",
+        otherOutcome: row.other_outcome || "",
+        otherDetails: row.other_details || "",
+        summary: summary?.working_text || summary?.generated_text || "",
+        summaryGeneratedText: summary?.generated_text || "",
+        summaryGeneratedAt: summary?.generated_at || null,
+        summaryFinalizedText: summary?.finalized_text || "",
+        summaryFinalizedAt: summary?.finalized_at || null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+    });
+
+    return {
+      shift: {
+        id: shiftRow.id,
+        startedAt: shiftRow.started_at,
+        status: shiftRow.status
+      },
+      patients,
+      references: []
+    };
+  }
+
+  async function invokeAuthedFunction(name, body, label) {
+    const session = await getSession();
+    if (!session?.access_token) throw new Error("Not authenticated.");
+
+    const { data, error } = await requireClient().functions.invoke(
+      name,
+      {
+        body,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      }
+    );
+
+    if (error) {
+      throw new Error(
+        `${label} failed: ${error.message || "Unknown error"}`
+      );
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data;
+  }
+
+  async function saveState(state) {
+    if (!state?.shift) return { removed: 0, report: null };
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "save_state",
+        state
+      },
+      "Clinical privacy service"
+    );
+  }
+
+  async function savePatient(shiftId, patient) {
+    if (!shiftId || !patient) return { removed: 0, report: null };
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "save_patient",
+        shiftId,
+        patient
+      },
+      "Clinical privacy service"
+    );
+  }
+
+  async function appendSummaryRevision(patient) {
+    if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
+      return { removed: 0, report: null };
+    }
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "append_revision",
+        patient
+      },
+      "Finalized corpus save"
+    );
+  }
+
+  async function generateSummary(caseId) {
+    if (!caseId) throw new Error("Missing case ID.");
+
+    return invokeAuthedFunction(
+      "generate-summary",
+      { caseId },
+      "Summary generation"
+    );
+  }
+
+  async function getLearningOverview() {
+    return invokeAuthedFunction(
+      "learning-admin",
+      { action: "overview" },
+      "AI Learning overview"
+    );
+  }
+
+  async function analyzeStyle() {
+    return invokeAuthedFunction(
+      "analyze-style",
+      { action: "analyze" },
+      "Style analysis"
+    );
+  }
+
+  async function activateStyle(profileId) {
+    return invokeAuthedFunction(
+      "analyze-style",
+      { action: "activate", profileId },
+      "Style activation"
+    );
+  }
+
+  async function analyzeSkill() {
+    return invokeAuthedFunction(
+      "analyze-skill",
+      { action: "analyze" },
+      "Skill analysis"
+    );
+  }
+
+  async function reviewSkillSuggestion(suggestionId, decision) {
+    return invokeAuthedFunction(
+      "analyze-skill",
+      { action: "review", suggestionId, decision },
+      "Skill suggestion review"
+    );
+  }
+
+  window.BachSBOBackend = {
+    init,
+    isConfigured,
+    getSession,
+    getUser,
+    signInWithOtp,
+    signOut,
+    startShift,
+    closeShift,
+    loadState,
+    saveState,
+    savePatient,
+    appendSummaryRevision,
+    generateSummary,
+    getLearningOverview,
+    analyzeStyle,
+    activateStyle,
+    analyzeSkill,
+    reviewSkillSuggestion
+  };
+})();

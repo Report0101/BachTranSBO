@@ -165,3 +165,27 @@ textarea{min-height:92px;resize:vertical}
   .main{padding:12px}
   .topbar{align-items:flex-start;flex-direction:column}
 }
+
+.learning-head{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px
+}
+.learning-head h1{margin:0 0 4px;font-size:26px}
+.learning-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.learning-metric{padding:16px 18px}
+.learning-number{font-size:30px;font-weight:850;margin-top:4px}
+.learning-number.small{font-size:18px}
+.learning-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.learning-item{border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:12px}
+.learning-item:last-child{margin-bottom:0}
+.learning-item-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+.learning-text{
+  white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;border:1px solid var(--line);
+  border-radius:9px;padding:10px;font-size:13px;line-height:1.45;margin:8px 0
+}
+.learning-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.badge.pending{background:#fef3c7;color:#92400e}
+.badge.rejected{background:#f3f4f6;color:#4b5563}
+.badge.accepted{background:#dbeafe;color:#1d4ed8}
+@media (max-width:900px){
+  .learning-metrics,.learning-grid{grid-template-columns:1fr}
+}
