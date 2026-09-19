@@ -111,6 +111,41 @@ function flattenTests(patient: any, ownerId: string) {
   return rows;
 }
 
+async function syncTests(db: any, ownerId: string, patient: any) {
+  const rows = flattenTests(patient, ownerId);
+  const currentIds = new Set(rows.map((row) => row.id));
+
+  const { data: existingRows, error: existingError } = await db
+    .from("test_entries")
+    .select("id")
+    .eq("case_id", patient.id)
+    .eq("owner_id", ownerId);
+
+  if (existingError) throw existingError;
+
+  if (rows.length) {
+    const { error: upsertError } = await db
+      .from("test_entries")
+      .upsert(rows, { onConflict: "id" });
+    if (upsertError) throw upsertError;
+  }
+
+  const staleIds = (existingRows || [])
+    .map((row: any) => row.id)
+    .filter((id: string) => !currentIds.has(id));
+
+  if (staleIds.length) {
+    const { error: deleteError } = await db
+      .from("test_entries")
+      .delete()
+      .eq("case_id", patient.id)
+      .eq("owner_id", ownerId)
+      .in("id", staleIds);
+
+    if (deleteError) throw deleteError;
+  }
+}
+
 function snapshotTest(entry: any, category: string, sequence: number) {
   const mode = entry?.mode || "waiting";
   const text = String(entry?.text || "").trim();
@@ -267,12 +302,8 @@ async function saveState(db: any, ownerId: string, inputState: any) {
       .upsert(caseRows, { onConflict: "id" });
     if (caseError) throw caseError;
 
-    const testRows = patients.flatMap((p: any) => flattenTests(p, ownerId));
-    if (testRows.length) {
-      const { error: testError } = await db
-        .from("test_entries")
-        .upsert(testRows, { onConflict: "id" });
-      if (testError) throw testError;
+    for (const patient of patients) {
+      await syncTests(db, ownerId, patient);
     }
 
     const summaryRows = patients
@@ -365,13 +396,7 @@ async function savePatient(
 
   if (caseError) throw caseError;
 
-  const testRows = flattenTests(patient, ownerId);
-  if (testRows.length) {
-    const { error: testError } = await db
-      .from("test_entries")
-      .upsert(testRows, { onConflict: "id" });
-    if (testError) throw testError;
-  }
+  await syncTests(db, ownerId, patient);
 
   if (
     patient.summary ||
@@ -401,6 +426,115 @@ async function savePatient(
     patient,
     report,
     removed: reportTotal(report),
+  };
+}
+
+async function finalizePatient(
+  db: any,
+  ownerId: string,
+  shiftId: string,
+  patientInput: any,
+) {
+  const { patient, report } = await deidentifyPatient(patientInput);
+
+  if (!shiftId || patient?.shiftId !== shiftId) {
+    throw new Error("Patient/shift mismatch.");
+  }
+  if (!patient?.summaryFinalizedAt || !patient?.summaryFinalizedText) {
+    throw new Error("Finalized summary is required.");
+  }
+
+  const now = new Date().toISOString();
+  const snapshot = corpusSnapshot(patient);
+  const caseRow = {
+    id: patient.id,
+    shift_id: shiftId,
+    owner_id: ownerId,
+    local_id: patient.localId,
+    sex: patient.sex || null,
+    year_of_birth: patient.yob ? Number(patient.yob) : null,
+    main_complaint: patient.mainComplaint || "",
+    complaint: patient.complaint || "",
+    history: patient.history || "",
+    physical_exam: patient.physical || "",
+    diagnoses: patient.diagnoses || "",
+    others: patient.others || "",
+    therapy: patient.therapy || "",
+    clinical_course: patient.course || "",
+    disposition: patient.disposition || "",
+    recommendations: patient.recommendations || [""],
+    hospital: patient.hospital || "",
+    ward: patient.ward || "",
+    accepting_physician: patient.physician || "",
+    admission_note: patient.admissionNote || "",
+    other_outcome: patient.otherOutcome || "",
+    other_details: patient.otherDetails || "",
+    status: "completed",
+    completed_at: patient.summaryFinalizedAt,
+    created_at: patient.createdAt || now,
+    updated_at: patient.updatedAt || now,
+    deidentified_at: now,
+    deidentification_version: "v1",
+  };
+
+  const summaryRow = {
+    case_id: patient.id,
+    owner_id: ownerId,
+    generated_text: patient.summaryGeneratedText || patient.summary || "",
+    working_text: patient.summary || "",
+    finalized_text: patient.summaryFinalizedText,
+    generated_at: patient.summaryGeneratedAt || null,
+    finalized_at: patient.summaryFinalizedAt,
+    updated_at: now,
+  };
+
+  const revisionPayload = {
+    generated_text: patient.summaryGeneratedText || patient.summary || "",
+    finalized_text: patient.summaryFinalizedText,
+    finalized_at: patient.summaryFinalizedAt,
+    deidentification_version: "v1",
+    case_snapshot: snapshot,
+  };
+
+  const { data: revisionId, error } = await db.rpc("finalize_case_atomic", {
+    p_owner_id: ownerId,
+    p_case: caseRow,
+    p_tests: flattenTests(patient, ownerId),
+    p_summary: summaryRow,
+    p_revision: revisionPayload,
+  });
+
+  if (error) throw error;
+  if (!revisionId) throw new Error("Atomic finalization returned no revision ID.");
+
+  let embeddingWarning: string | null = null;
+  try {
+    const embedded = await createEmbedding(JSON.stringify(snapshot));
+    const { error: embeddingError } = await db
+      .from("summary_revisions")
+      .update({
+        embedding: embedded.embedding,
+        embedding_model: embedded.model,
+        embedding_created_at: new Date().toISOString(),
+      })
+      .eq("id", revisionId)
+      .eq("owner_id", ownerId);
+
+    if (embeddingError) throw embeddingError;
+  } catch (embeddingError) {
+    embeddingWarning = embeddingError instanceof Error
+      ? embeddingError.message
+      : "Embedding generation failed.";
+    console.error(embeddingError);
+  }
+
+  return {
+    patient,
+    report,
+    removed: reportTotal(report),
+    revisionId,
+    embedded: !embeddingWarning,
+    embeddingWarning,
   };
 }
 
@@ -499,6 +633,17 @@ Deno.serve(async (req) => {
     if (body?.action === "save_patient") {
       return json(
         await savePatient(db, user.id, String(body.shiftId || ""), body.patient),
+      );
+    }
+
+    if (body?.action === "finalize_patient") {
+      return json(
+        await finalizePatient(
+          db,
+          user.id,
+          String(body.shiftId || ""),
+          body.patient,
+        ),
       );
     }
 

@@ -993,9 +993,11 @@ async function finalizeSummary() {
   patient.updatedAt = nowIso();
 
   try {
-    await persistNow();
-    const revisionResult =
-      await window.BachSBOBackend.appendSummaryRevision(patient);
+    const revisionResult = await window.BachSBOBackend.finalizePatient(
+      state.shift?.id,
+      patient
+    );
+    stateDirty = false;
 
     if (revisionResult?.patient?.id === patient.id) {
       Object.assign(patient, revisionResult.patient);
