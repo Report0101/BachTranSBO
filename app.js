@@ -247,6 +247,7 @@ function addPatient() {
     otherOutcome: "",
     otherDetails: "",
     summary: "",
+    summaryGeneratedText: "",
     summaryGeneratedAt: null,
     summaryFinalizedText: "",
     summaryFinalizedAt: null,
@@ -716,6 +717,7 @@ function generateSummary() {
   if (!patient) return;
 
   patient.summary = buildMockSummary(patient);
+  patient.summaryGeneratedText = patient.summary;
   patient.summaryGeneratedAt = nowIso();
 
   persist();
