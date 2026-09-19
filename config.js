@@ -14,6 +14,7 @@ window.BACH_SBO_CONFIG = {
 
   const YEAR = new Date().getFullYear();
   const SAVE_DELAY_MS = 900;
+  const DISCHARGE_PREFIX = "Otthonába bocsátáskor: ";
   let lastLoadedCaseId = "";
   let lastSaveFailedAt = 0;
 
@@ -26,11 +27,11 @@ window.BACH_SBO_CONFIG = {
     ["other", "Other", "egyéb"]
   ];
 
-  const SEX_VALUES = ["Female", "Male", "Other"];
+  const SEX_VALUES = ["F", "M", "O"];
   const SEX_COLORS = {
-    Female: { background: "#fce7f3", border: "#f9a8d4", color: "#9d174d" },
-    Male: { background: "#e0f2fe", border: "#7dd3fc", color: "#075985" },
-    Other: { background: "linear-gradient(90deg,#fee2e2,#fef3c7,#dcfce7,#dbeafe,#f3e8ff)", border: "#c4b5fd", color: "#312e81" }
+    F: { background: "#fff1f2", border: "#fbcfe8", color: "#9d174d" },
+    M: { background: "#e0f2fe", border: "#7dd3fc", color: "#075985" },
+    O: { background: "linear-gradient(90deg,#fee2e2,#fef3c7,#dcfce7,#dbeafe,#f3e8ff)", border: "#c4b5fd", color: "#312e81" }
   };
 
   const lang = () => document.documentElement.lang === "hu" ? "hu" : "en";
@@ -50,17 +51,17 @@ window.BACH_SBO_CONFIG = {
 
   function normalizeSex(value) {
     const raw = String(value || "").trim().toLowerCase();
-    if (["f", "female", "woman", "nő", "no", "nőbeteg", "w"].includes(raw)) return "Female";
-    if (["m", "male", "man", "férfi", "ferfi", "férfibeteg"].includes(raw)) return "Male";
-    if (["o", "other", "egyéb", "egyeb", "x", "nonbinary", "non-binary"].includes(raw)) return "Other";
+    if (["f", "female", "woman", "nő", "no", "nőbeteg", "w"].includes(raw)) return "F";
+    if (["m", "male", "man", "férfi", "ferfi", "férfibeteg"].includes(raw)) return "M";
+    if (["o", "other", "egyéb", "egyeb", "x", "nonbinary", "non-binary"].includes(raw)) return "O";
     return "";
   }
 
   function sexLabel(value) {
     const normalized = normalizeSex(value);
-    if (normalized === "Female") return label("Female", "Nő");
-    if (normalized === "Male") return label("Male", "Férfi");
-    if (normalized === "Other") return label("Other", "Egyéb");
+    if (normalized === "F") return label("Female", "Nő");
+    if (normalized === "M") return label("Male", "Férfi");
+    if (normalized === "O") return label("Other", "Egyéb");
     return "";
   }
 
@@ -72,8 +73,7 @@ window.BACH_SBO_CONFIG = {
     const normalized = normalizeSex(value);
     if (!normalized) return "";
     const c = sexStyle(normalized);
-    const text = sexLabel(normalized);
-    return `<span data-sex-badge="${normalized}" style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c.border};background:${c.background};color:${c.color};border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap">${text}</span>`;
+    return `<span data-sex-badge="${normalized}" style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c.border};background:${c.background};color:${c.color};border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap">${sexLabel(normalized)}</span>`;
   }
 
   function sexOptionsHtml(current) {
@@ -88,14 +88,9 @@ window.BACH_SBO_CONFIG = {
   function paintSexSelect(select) {
     if (!select) return;
     const normalized = normalizeSex(select.value);
-    if (select.dataset.sexEnhanced !== "true") {
-      select.dataset.sexEnhanced = "true";
-      select.innerHTML = sexOptionsHtml(normalized);
-      select.addEventListener("change", () => paintSexSelect(select));
-    } else {
-      select.innerHTML = sexOptionsHtml(normalized);
-      select.value = normalized;
-    }
+    select.innerHTML = sexOptionsHtml(normalized);
+    select.value = normalized;
+    select.dataset.sexEnhanced = "true";
     const c = sexStyle(normalized);
     select.style.borderColor = c?.border || "";
     select.style.background = c?.background || "";
@@ -149,32 +144,6 @@ window.BACH_SBO_CONFIG = {
     return patient;
   }
 
-  function enhanceSexUi() {
-    [document.getElementById("iceSex"), document.getElementById("newSex")].forEach((select) => {
-      if (!select) return;
-      const current = normalizeSex(select.value);
-      select.innerHTML = sexOptionsHtml(current);
-      select.value = current;
-      select.dataset.sexEnhanced = "true";
-      paintSexSelect(select);
-    });
-
-    document.querySelectorAll("tr[data-id] td:nth-child(2)").forEach((cell) => {
-      const text = cell.textContent || "";
-      const normalized = normalizeSex(text);
-      if (normalized) cell.innerHTML = sexBadge(normalized);
-    });
-
-    updateNextLocalIdHint();
-  }
-
-  function setStatus(en, hu, isError = false) {
-    const st = document.getElementById("iceStatus");
-    if (!st) return;
-    st.textContent = label(en, hu);
-    st.style.color = isError ? "#b91c1c" : "";
-  }
-
   function selectedId() {
     return document.querySelector("tr.selected[data-id]")?.dataset?.id || "";
   }
@@ -189,7 +158,7 @@ window.BACH_SBO_CONFIG = {
 
   function isEditingCaseDetails() {
     const active = document.activeElement;
-    return Boolean(active && (active.closest?.("#inlineCaseEditor") || active.id === "fMainComplaint"));
+    return Boolean(active && (active.closest?.("#inlineCaseEditor") || active.id === "fMainComplaint" || active.id === "fDischargeCondition"));
   }
 
   function backendReady() {
@@ -212,9 +181,6 @@ window.BACH_SBO_CONFIG = {
   async function syncedClient() {
     const client = db();
     if (!client) throw new Error("Supabase client is not available.");
-
-    // Use the same authenticated session as the main app. This avoids RLS/session
-    // drift between this lightweight editor and backend.js.
     if (backendReady()) {
       const session = await window.BachSBOBackend.getSession();
       if (session?.access_token && session?.refresh_token) {
@@ -225,6 +191,70 @@ window.BACH_SBO_CONFIG = {
       }
     }
     return client;
+  }
+
+  function setStatus(en, hu, isError = false) {
+    const st = document.getElementById("iceStatus");
+    if (!st) return;
+    st.textContent = label(en, hu);
+    st.style.color = isError ? "#b91c1c" : "";
+  }
+
+  function dischargeConditionTextFromStored(value) {
+    const text = String(value || "").trim();
+    return text.startsWith(DISCHARGE_PREFIX) ? text.slice(DISCHARGE_PREFIX.length).trim() : text;
+  }
+
+  function ensureDischargeConditionUi() {
+    const disposition = document.getElementById("fDisposition");
+    if (!disposition) return;
+
+    let wrap = document.getElementById("dischargeConditionWrap");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "dischargeConditionWrap";
+      wrap.className = "field narrative-field waiting hidden";
+      wrap.style.marginTop = "8px";
+      wrap.innerHTML = `
+        <div class="narrative-head">
+          <label data-discharge-label>Milyen állapotban, panasz?</label>
+          <div class="narrative-actions"><span class="field-state waiting" id="dischargeConditionState">KÖTELEZŐ</span></div>
+        </div>
+        <textarea id="fDischargeCondition" placeholder="Például: panaszmentesen, jó általános állapotban; mellkasi fájdalma nem jelentkezett..."></textarea>
+      `;
+      disposition.closest(".field")?.after(wrap);
+    }
+
+    const visible = disposition.value === "discharged";
+    wrap.classList.toggle("hidden", !visible);
+    const text = document.getElementById("fDischargeCondition")?.value.trim() || "";
+    wrap.classList.toggle("waiting", visible && !text);
+    wrap.classList.toggle("result", visible && Boolean(text));
+    const state = document.getElementById("dischargeConditionState");
+    if (state) {
+      state.textContent = text ? label("COMPLETE", "KÉSZ") : label("REQUIRED", "KÖTELEZŐ");
+      state.className = `field-state ${text ? "result" : "waiting"}`;
+    }
+    const lab = wrap.querySelector("[data-discharge-label]");
+    if (lab) lab.textContent = label("Condition / symptoms at discharge", "Milyen állapotban, panasz?");
+  }
+
+  function getDischargeCondition() {
+    return String(document.getElementById("fDischargeCondition")?.value || "").trim();
+  }
+
+  function validateDischargeCondition(patient) {
+    const disposition = document.getElementById("fDisposition")?.value || patient?.disposition || "";
+    if (disposition !== "discharged") return true;
+    const text = getDischargeCondition();
+    ensureDischargeConditionUi();
+    if (text) return true;
+    setStatus(
+      "Enter condition / symptoms at discharge before saving or generating.",
+      "Otthonába bocsátás esetén kötelező: Milyen állapotban, panasz?",
+      true
+    );
+    return false;
   }
 
   function ensureUi() {
@@ -271,6 +301,7 @@ window.BACH_SBO_CONFIG = {
     updateLabels();
     wireUi();
     enhanceSexUi();
+    ensureDischargeConditionUi();
     return true;
   }
 
@@ -285,7 +316,6 @@ window.BACH_SBO_CONFIG = {
     document.querySelectorAll("[data-ice-label]").forEach((el) => {
       el.textContent = labels[el.dataset.iceLabel] || el.textContent;
     });
-
     const sel = document.getElementById("iceArrival");
     if (sel) {
       const current = sel.value;
@@ -294,39 +324,54 @@ window.BACH_SBO_CONFIG = {
       ).join("");
       sel.value = current;
     }
-
     const del = document.getElementById("iceDeleteCase");
     if (del) del.textContent = label("DELETE CASE", "ESET TÖRLÉSE");
+  }
+
+  function enhanceSexUi() {
+    [document.getElementById("iceSex"), document.getElementById("newSex")].forEach((select) => {
+      if (!select) return;
+      const current = normalizeSex(select.value);
+      paintSexSelect(select);
+      select.value = current;
+    });
+    document.querySelectorAll("tr[data-id] td:nth-child(2)").forEach((cell) => {
+      const normalized = normalizeSex(cell.textContent || "");
+      if (normalized) cell.innerHTML = sexBadge(normalized);
+    });
+    updateNextLocalIdHint();
   }
 
   async function loadSelected({ force = false } = {}) {
     if (!ensureUi()) return;
     const id = selectedId();
     if (!id) return;
-
     if (!force) {
       if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
       if (Date.now() - lastSaveFailedAt < 3000) return;
     }
-
     try {
       const client = await syncedClient();
       const { data, error } = await client
         .from("cases")
-        .select("id, sex, year_of_birth, main_complaint, arrival_mode, arrival_other")
+        .select("id, sex, year_of_birth, main_complaint, arrival_mode, arrival_other, disposition, other_details")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
       if (!data || selectedId() !== id) return;
 
-      const sex = normalizeSex(data.sex);
-      document.getElementById("iceSex").value = sex;
+      document.getElementById("iceSex").value = normalizeSex(data.sex);
       paintSexSelect(document.getElementById("iceSex"));
       document.getElementById("iceYob").value = data.year_of_birth ? String(data.year_of_birth) : "";
       document.getElementById("iceAge").value = ageFromYob(data.year_of_birth);
       document.getElementById("iceArrival").value = data.arrival_mode || "";
       document.getElementById("iceArrivalOther").value = data.arrival_other || "";
       document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (data.arrival_mode || "") !== "other");
+      if ((document.getElementById("fDisposition")?.value || data.disposition) === "discharged") {
+        const discharge = document.getElementById("fDischargeCondition");
+        if (discharge && !discharge.value) discharge.value = dischargeConditionTextFromStored(data.other_details);
+      }
+      ensureDischargeConditionUi();
       lastLoadedCaseId = id;
       enhanceSexUi();
     } catch (error) {
@@ -337,16 +382,13 @@ window.BACH_SBO_CONFIG = {
   function rowUpdate(payload) {
     const row = selectedRow();
     if (!row) return;
-
     const tds = row.querySelectorAll("td");
     const hasYob = Object.prototype.hasOwnProperty.call(payload, "year_of_birth");
     const displayAge = hasYob ? ageFromYob(payload.year_of_birth) : (document.getElementById("iceAge")?.value || "");
     const sex = normalizeSex(payload.sex);
-
     if (tds[1]) tds[1].innerHTML = sexBadge(sex) || "";
     if (tds[2] && hasYob) tds[2].textContent = displayAge || "";
     if (tds[3]) tds[3].textContent = document.getElementById("fMainComplaint")?.value || tds[3].textContent || "";
-
     const subtitle = document.getElementById("recordSubtitle");
     if (subtitle) {
       subtitle.textContent = `${sexLabel(sex) || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
@@ -359,9 +401,9 @@ window.BACH_SBO_CONFIG = {
     const yobNum = Number(yobText);
     const validYob = Number.isInteger(yobNum) && yobNum >= 1900 && yobNum <= YEAR;
     const partialYob = Boolean(yobText) && !validYob;
-
     document.getElementById("iceAge").value = validYob ? ageFromYob(yobNum) : "";
-
+    const disposition = document.getElementById("fDisposition")?.value || "";
+    const discharge = getDischargeCondition();
     const payload = {
       sex: normalizeSex(document.getElementById("iceSex")?.value) || null,
       main_complaint: document.getElementById("fMainComplaint")?.value || "",
@@ -369,7 +411,7 @@ window.BACH_SBO_CONFIG = {
       arrival_other: arrival === "other" ? document.getElementById("iceArrivalOther")?.value || "" : "",
       updated_at: new Date().toISOString()
     };
-
+    if (disposition === "discharged") payload.other_details = discharge ? `${DISCHARGE_PREFIX}${discharge}` : "";
     if (!yobText || validYob) payload.year_of_birth = validYob ? yobNum : null;
     return { payload, partialYob };
   }
@@ -377,19 +419,12 @@ window.BACH_SBO_CONFIG = {
   function mergeInlineDetailsIntoPatient(patient) {
     if (!patient || patient.id !== selectedId()) return patient;
     if (!ensureUi()) return patient;
-
     repairPatientLocalId(patient);
-
     const { payload, partialYob } = buildPayload();
     if (partialYob) {
-      setStatus(
-        "Enter a 4-digit birth year before saving or generating.",
-        "Mentés vagy generálás előtt adjon meg 4 jegyű születési évet.",
-        true
-      );
+      setStatus("Enter a 4-digit birth year before saving or generating.", "Mentés vagy generálás előtt adjon meg 4 jegyű születési évet.", true);
       return patient;
     }
-
     patient.sex = payload.sex || "";
     if (Object.prototype.hasOwnProperty.call(payload, "year_of_birth")) {
       patient.yob = payload.year_of_birth ? String(payload.year_of_birth) : "";
@@ -397,6 +432,10 @@ window.BACH_SBO_CONFIG = {
     patient.mainComplaint = payload.main_complaint || "";
     patient.arrivalMode = payload.arrival_mode || "";
     patient.arrivalOther = payload.arrival_other || "";
+    if ((document.getElementById("fDisposition")?.value || "") === "discharged") {
+      patient.disposition = "discharged";
+      patient.otherDetails = payload.other_details || "";
+    }
     patient.updatedAt = new Date().toISOString();
     rowUpdate(payload);
     return patient;
@@ -410,6 +449,7 @@ window.BACH_SBO_CONFIG = {
     if (typeof originalSavePatient === "function") {
       backend.savePatient = function patchedSavePatient(shiftId, patient) {
         mergeInlineDetailsIntoPatient(patient);
+        if (!validateDischargeCondition(patient)) return Promise.reject(new Error(label("Discharge condition / symptoms is required.", "Otthonába bocsátás esetén kötelező: Milyen állapotban, panasz?")));
         return originalSavePatient.call(this, shiftId, patient);
       };
     }
@@ -418,6 +458,7 @@ window.BACH_SBO_CONFIG = {
     if (typeof originalFinalizePatient === "function") {
       backend.finalizePatient = function patchedFinalizePatient(shiftId, patient) {
         mergeInlineDetailsIntoPatient(patient);
+        if (!validateDischargeCondition(patient)) return Promise.reject(new Error(label("Discharge condition / symptoms is required.", "Otthonába bocsátás esetén kötelező: Milyen állapotban, panasz?")));
         return originalFinalizePatient.call(this, shiftId, patient);
       };
     }
@@ -433,28 +474,19 @@ window.BACH_SBO_CONFIG = {
       };
     }
 
-    Object.defineProperty(backend, "__inlineCaseDetailsBridge", {
-      value: true,
-      configurable: true
-    });
+    Object.defineProperty(backend, "__inlineCaseDetailsBridge", { value: true, configurable: true });
     return true;
   }
 
   async function saveSelected() {
     const id = selectedId();
     if (!id) return;
-
     const { payload, partialYob } = buildPayload();
     if (partialYob) {
-      setStatus(
-        "Enter a 4-digit birth year between 1900 and current year.",
-        "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.",
-        false
-      );
+      setStatus("Enter a 4-digit birth year between 1900 and current year.", "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.", false);
       rowUpdate(payload);
       return;
     }
-
     try {
       setStatus("Saving case details…", "Esetadatok mentése…");
       const client = await syncedClient();
@@ -466,11 +498,7 @@ window.BACH_SBO_CONFIG = {
     } catch (error) {
       lastSaveFailedAt = Date.now();
       const detail = error?.message ? ` (${error.message})` : "";
-      setStatus(
-        `Could not save case details${detail}.`,
-        `Nem sikerült menteni az esetadatokat${detail}.`,
-        true
-      );
+      setStatus(`Could not save case details${detail}.`, `Nem sikerült menteni az esetadatokat${detail}.`, true);
       console.warn("Inline case save failed", error);
     }
   }
@@ -478,23 +506,14 @@ window.BACH_SBO_CONFIG = {
   async function deleteSelectedCase() {
     const id = selectedId();
     if (!id) return;
-
     const name = selectedCaseLabel();
-    const firstConfirm = confirm(label(
+    if (!confirm(label(
       `Delete case ${name}? This will permanently remove the case, tests, summary and finalized revisions.`,
       `Törli a(z) ${name} esetet? Ez véglegesen törli az esetet, vizsgálatokat, összefoglalót és véglegesített verziókat.`
-    ));
-    if (!firstConfirm) return;
-
-    const secondConfirm = confirm(label(
-      "This cannot be undone. Continue?",
-      "Ez nem vonható vissza. Folytatja?"
-    ));
-    if (!secondConfirm) return;
-
+    ))) return;
+    if (!confirm(label("This cannot be undone. Continue?", "Ez nem vonható vissza. Folytatja?"))) return;
     const btn = document.getElementById("iceDeleteCase");
     if (btn) btn.disabled = true;
-
     try {
       setStatus("Deleting case…", "Eset törlése…");
       const client = await syncedClient();
@@ -520,7 +539,6 @@ window.BACH_SBO_CONFIG = {
       const el = document.getElementById(id);
       if (!el || el.dataset.iceWired === "true") return;
       el.dataset.iceWired = "true";
-
       const handler = () => {
         const yob = document.getElementById("iceYob");
         const age = document.getElementById("iceAge");
@@ -530,35 +548,41 @@ window.BACH_SBO_CONFIG = {
         document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (arrival?.value || "") !== "other");
         scheduleSave(id === "iceYob" || id === "fMainComplaint" ? SAVE_DELAY_MS : 100);
       };
-
       el.addEventListener("input", handler);
       el.addEventListener("change", handler);
       el.addEventListener("blur", () => scheduleSave(50));
     });
-
     const del = document.getElementById("iceDeleteCase");
     if (del && del.dataset.iceWired !== "true") {
       del.dataset.iceWired = "true";
       del.addEventListener("click", deleteSelectedCase);
+    }
+    const disposition = document.getElementById("fDisposition");
+    if (disposition && disposition.dataset.dischargeWired !== "true") {
+      disposition.dataset.dischargeWired = "true";
+      disposition.addEventListener("change", () => { ensureDischargeConditionUi(); scheduleSave(100); });
+    }
+    const discharge = document.getElementById("fDischargeCondition");
+    if (discharge && discharge.dataset.dischargeWired !== "true") {
+      discharge.dataset.dischargeWired = "true";
+      discharge.addEventListener("input", () => { ensureDischargeConditionUi(); scheduleSave(SAVE_DELAY_MS); });
+      discharge.addEventListener("blur", () => scheduleSave(50));
     }
   }
 
   function install() {
     if (window.__inlineCaseEditorInstalled) return;
     window.__inlineCaseEditorInstalled = true;
-
-    // Hungarian is the default working language for this app.
     setTimeout(() => window.applyLanguage?.("hu"), 250);
     setTimeout(() => window.applyLanguage?.("hu"), 900);
-
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
       window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); installBackendPayloadBridge(); enhanceSexUi(); }, 120);
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-
     document.addEventListener("click", () => setTimeout(() => { loadSelected({ force: true }); enhanceSexUi(); }, 100), true);
     document.addEventListener("change", (event) => {
       if (event.target?.id === "newSex") paintSexSelect(event.target);
+      if (event.target?.id === "fDisposition") ensureDischargeConditionUi();
     }, true);
     setInterval(() => { ensureUi(); installBackendPayloadBridge(); enhanceSexUi(); }, 1200);
     setTimeout(() => { loadSelected({ force: true }); installBackendPayloadBridge(); enhanceSexUi(); }, 600);
