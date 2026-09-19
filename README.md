@@ -8,7 +8,9 @@ Personal emergency-department command center for one active shift at a time, wit
 - Backend foundation: Supabase Auth + PostgreSQL + Row Level Security.
 - Persistence: shifts, cases, test entries, summaries, and finalized-summary revisions.
 - Authentication: personal email magic-link / OTP.
-- AI: the current **Generate Summary** button still uses deterministic mock generation; live GPT/SBO Documentation Skill integration is the next backend milestone.
+- Privacy gate: permanent clinical writes go through the `clinical-store` Edge Function.
+- De-identification: deterministic Hungarian-aware rules plus a fail-closed AI person-name/missed-identifier pass.
+- AI summary: the current **Generate Summary** button still uses deterministic mock generation; live GPT/SBO Documentation Skill integration is the next milestone.
 
 See `docs/BACKEND_SETUP.md` for setup.
 
@@ -98,8 +100,7 @@ Never place a Supabase secret/service-role key in browser code.
 
 ## Next milestones
 
-1. Automatic Hungarian-aware de-identification (TAJ, names, full DOB, phone, email, addresses, EHR identifiers).
-2. Server-side `generate-summary` Edge Function.
-3. SBO Documentation Skill + versioning.
-4. Similar-case retrieval with embeddings/pgvector.
-5. AI learning dashboard and Skill-change suggestions.
+1. Server-side `generate-summary` Edge Function.
+2. SBO Documentation Skill + versioning.
+3. Similar-case retrieval with embeddings/pgvector.
+4. AI learning dashboard and Skill-change suggestions.
