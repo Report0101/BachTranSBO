@@ -212,3 +212,16 @@ For this repository:
 - CORS `APP_ORIGIN`: `https://report0101.github.io`
 
 CORS origin must not include `/BachTranSBO/`; browser Origin headers contain only scheme + host (+ port).
+
+
+## Admin authentication
+
+The production frontend uses single-owner email + password authentication.
+
+- The admin email is public configuration in `config.js`.
+- The password is never stored in the repository.
+- There is no signup UI.
+- Sign-in uses `supabase.auth.signInWithPassword()`.
+- The Admin view can change the password after verifying the current password.
+- Frontend minimum password length is 6 characters and imposes no additional complexity rule.
+- Edge Functions still enforce `APP_OWNER_USER_ID`, and database RLS remains enabled.

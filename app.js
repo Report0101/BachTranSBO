@@ -166,13 +166,20 @@ function renderApp() {
   renderHeader();
 
   const learning = currentView === "learning";
-  document.getElementById("patientsNav").classList.toggle("active", !learning);
-  document.getElementById("aiLearningNav").classList.toggle("active", learning);
-  document.getElementById("aiLearningView").classList.toggle("hidden", !learning);
+  const admin = currentView === "admin";
+  const patients = currentView === "patients";
 
-  if (learning) {
+  document.getElementById("patientsNav").classList.toggle("active", patients);
+  document.getElementById("aiLearningNav").classList.toggle("active", learning);
+  document.getElementById("adminNav").classList.toggle("active", admin);
+
+  document.getElementById("aiLearningView").classList.toggle("hidden", !learning);
+  document.getElementById("adminView").classList.toggle("hidden", !admin);
+
+  if (learning || admin) {
     document.getElementById("noShiftView").classList.add("hidden");
     document.getElementById("patientsView").classList.add("hidden");
+    if (admin) renderAdminView();
     return;
   }
 
@@ -188,6 +195,57 @@ function setView(view) {
 
   if (view === "learning") {
     renderLearningDashboard().catch(handleBackendError);
+  }
+}
+
+function renderAdminView() {
+  const email = window.BACH_SBO_CONFIG?.adminEmail || currentUser?.email || "";
+  document.getElementById("adminEmailDisplay").value = email;
+}
+
+async function changeAdminPassword() {
+  const currentPassword = document.getElementById("currentAdminPassword").value;
+  const newPassword = document.getElementById("newAdminPassword").value;
+  const confirmPassword = document.getElementById("confirmAdminPassword").value;
+  const button = document.getElementById("changeAdminPasswordBtn");
+  const message = document.getElementById("adminPasswordMessage");
+
+  message.textContent = "";
+
+  if (!currentPassword) {
+    message.textContent = "Enter your current password.";
+    return;
+  }
+  if (newPassword.length < 6) {
+    message.textContent = "New password must contain at least 6 characters.";
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    message.textContent = "New passwords do not match.";
+    return;
+  }
+  if (newPassword === currentPassword) {
+    message.textContent = "New password must be different from the current password.";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "CHANGING…";
+
+  try {
+    await window.BachSBOBackend.changeAdminPassword(
+      currentPassword,
+      newPassword
+    );
+    document.getElementById("currentAdminPassword").value = "";
+    document.getElementById("newAdminPassword").value = "";
+    document.getElementById("confirmAdminPassword").value = "";
+    message.textContent = "Password changed successfully.";
+  } catch (error) {
+    message.textContent = error?.message || "Could not change password.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "CHANGE PASSWORD";
   }
 }
 
@@ -1084,35 +1142,57 @@ function showSetupRequired() {
 }
 
 function showSignIn() {
+  const adminEmail = window.BACH_SBO_CONFIG?.adminEmail || "";
+
   modal(`
-    <h3>Sign in</h3>
-    <p>Enter the email for your personal BachTranSBO account.</p>
+    <h3>Admin sign in</h3>
+    <p class="subtle">${esc(adminEmail)}</p>
     <div class="field">
-      <label>Email</label>
-      <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+      <label>Password</label>
+      <input id="authPassword" type="password" autocomplete="current-password"
+        minlength="6" placeholder="Admin password" />
     </div>
     <div class="modal-actions">
-      <button class="btn primary" id="sendLoginLink">SEND SIGN-IN LINK</button>
+      <button class="btn primary" id="passwordSignIn">SIGN IN</button>
     </div>
     <div id="authMessage" class="subtle"></div>
   `);
 
-  const email = document.getElementById("authEmail");
-  const button = document.getElementById("sendLoginLink");
+  const password = document.getElementById("authPassword");
+  const button = document.getElementById("passwordSignIn");
   const message = document.getElementById("authMessage");
 
-  button.onclick = async () => {
-    if (!email.value.trim()) return;
+  const submit = async () => {
+    if (password.value.length < 6) {
+      message.textContent = "Password must contain at least 6 characters.";
+      return;
+    }
+
     button.disabled = true;
-    message.textContent = "Sending…";
+    message.textContent = "Signing in…";
+
     try {
-      await window.BachSBOBackend.signInWithOtp(email.value.trim());
-      message.textContent = "Sign-in link sent. Open it in this browser.";
+      const session =
+        await window.BachSBOBackend.signInWithPassword(password.value);
+      currentUser = session.user;
+      state = await window.BachSBOBackend.loadState();
+      backendReady = true;
+      password.value = "";
+      closeModal();
+      renderApp();
     } catch (error) {
-      message.textContent = error?.message || "Could not send sign-in link.";
+      message.textContent = error?.message || "Sign in failed.";
+      password.value = "";
+      password.focus();
       button.disabled = false;
     }
   };
+
+  button.onclick = submit;
+  password.onkeydown = (event) => {
+    if (event.key === "Enter") submit();
+  };
+  password.focus();
 }
 
 async function bootstrap() {
@@ -1176,6 +1256,9 @@ document.getElementById("patientForm").addEventListener("submit", (event) => {
 
 document.getElementById("patientsNav").onclick = () => setView("patients");
 document.getElementById("aiLearningNav").onclick = () => setView("learning");
+document.getElementById("adminNav").onclick = () => setView("admin");
+document.getElementById("changeAdminPasswordBtn").onclick = changeAdminPassword;
+document.getElementById("adminSignOutBtn").onclick = signOut;
 document.getElementById("refreshLearningBtn").onclick = () =>
   renderLearningDashboard().catch(handleBackendError);
 document.getElementById("generateStyleBtn").onclick = generateStyleCandidate;

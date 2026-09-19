@@ -23,6 +23,7 @@
       <div class="nav-title">Workspace</div>
       <button class="nav-item active" id="patientsNav">Patients <span>●</span></button>
       <button class="nav-item" id="aiLearningNav">AI Learning <span>β</span></button>
+      <button class="nav-item" id="adminNav">Admin <span>⚙</span></button>
       <div class="nav-title">Future modules</div>
       <button class="nav-item disabled">Analytics <span>PLANNED</span></button>
       <button class="nav-item disabled">Archive <span>PLANNED</span></button>
@@ -326,6 +327,60 @@
             </div>
             <div class="card-b" id="skillSuggestionsList">
               <div class="subtle">Loading…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminView" class="hidden">
+        <div class="learning-head">
+          <div>
+            <h1>Admin</h1>
+            <div class="subtle">Single-owner account security settings.</div>
+          </div>
+        </div>
+
+        <div class="card admin-card">
+          <div class="card-h">
+            <div>
+              <h3>Account</h3>
+              <div class="subtle">Only the configured owner account can use this app.</div>
+            </div>
+          </div>
+          <div class="card-b">
+            <div class="field">
+              <label>Email</label>
+              <input id="adminEmailDisplay" disabled />
+            </div>
+
+            <div class="section">
+              <div class="section-title">Change password</div>
+              <div class="info-bar">
+                Minimum 6 characters. No special complexity rule is required by this app.
+              </div>
+
+              <div class="field">
+                <label>Current password</label>
+                <input id="currentAdminPassword" type="password" autocomplete="current-password" />
+              </div>
+              <div class="field">
+                <label>New password</label>
+                <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="6" />
+              </div>
+              <div class="field">
+                <label>Confirm new password</label>
+                <input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="6" />
+              </div>
+
+              <div class="toolbar">
+                <button class="btn primary" id="changeAdminPasswordBtn" type="button">
+                  CHANGE PASSWORD
+                </button>
+                <button class="btn" id="adminSignOutBtn" type="button">
+                  SIGN OUT
+                </button>
+              </div>
+              <div id="adminPasswordMessage" class="subtle mt16"></div>
             </div>
           </div>
         </div>

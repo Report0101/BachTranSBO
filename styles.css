@@ -189,3 +189,7 @@ textarea{min-height:92px;resize:vertical}
 @media (max-width:900px){
   .learning-metrics,.learning-grid{grid-template-columns:1fr}
 }
+
+
+.admin-card{max-width:680px}
+#adminPasswordMessage{min-height:20px}

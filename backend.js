@@ -12,6 +12,7 @@
     return Boolean(
       c.supabaseUrl &&
       c.supabasePublishableKey &&
+      c.adminEmail &&
       !c.supabaseUrl.includes("YOUR_PROJECT") &&
       !c.supabasePublishableKey.includes("YOUR_PUBLISHABLE_KEY")
     );
@@ -71,17 +72,42 @@
     return data.user;
   }
 
-  async function signInWithOtp(email) {
-    const redirectTo =
-      config().authRedirectTo ||
-      window.location.origin + window.location.pathname;
+  async function signInWithPassword(password) {
+    const email = config().adminEmail;
+    if (!email) throw new Error("Admin email is not configured.");
+    if (!password) throw new Error("Password is required.");
 
-    const { error } = await requireClient().auth.signInWithOtp({
+    const { data, error } = await requireClient().auth.signInWithPassword({
       email,
-      options: { emailRedirectTo: redirectTo }
+      password
     });
 
-    assertOk(error, "Send sign-in link");
+    assertOk(error, "Admin sign in");
+    if (!data.session) throw new Error("No authenticated session returned.");
+    return data.session;
+  }
+
+  async function changeAdminPassword(currentPassword, newPassword) {
+    const email = config().adminEmail;
+    if (!email) throw new Error("Admin email is not configured.");
+    if (!currentPassword) throw new Error("Current password is required.");
+    if (!newPassword) throw new Error("New password is required.");
+
+    // Verify the current password first and refresh the authenticated session.
+    const { error: verifyError } =
+      await requireClient().auth.signInWithPassword({
+        email,
+        password: currentPassword
+      });
+    assertOk(verifyError, "Verify current password");
+
+    const { data, error: updateError } =
+      await requireClient().auth.updateUser({
+        password: newPassword
+      });
+    assertOk(updateError, "Change admin password");
+
+    return data.user;
   }
 
   async function signOut() {
@@ -419,7 +445,8 @@
     isConfigured,
     getSession,
     getUser,
-    signInWithOtp,
+    signInWithPassword,
+    changeAdminPassword,
     signOut,
     startShift,
     closeShift,
