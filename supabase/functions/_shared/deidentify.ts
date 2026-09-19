@@ -93,7 +93,6 @@ export function ruleBasedDeidentify(input: unknown): {
 
   // Phone numbers are redacted only when explicitly labelled, to avoid
   // deleting laboratory values or other clinically meaningful numbers.
-
   r = replaceCount(
     text,
     /\b(?:tel(?:efon)?|mobil|phone)\s*[:#-]?\s*(?:\+?\d[\d\s()\/-]{6,}\d)\b/gi,
@@ -102,7 +101,8 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.phone += r.count;
 
-  // Labelled patient/person name fields. Unlabelled names are handled by the AI pass.
+  // Labelled patient/person name fields. Unlabelled names are handled by the AI pass,
+  // except in clinician-name safe zones such as receiving physician and consultations.
   r = replaceCount(
     text,
     /\b(?:beteg\s+neve|p[aá]ciens\s+neve|patient\s+name|name|n[eé]v)\s*[:#-]\s*[^\n;,]{2,80}/gi,
@@ -159,7 +159,7 @@ async function aiScrubItems(
   const prompt = [
     "You are a privacy filter for Hungarian emergency-department clinical text.",
     "The deterministic privacy pass has already removed obvious TAJ, labelled DOB, email, phone, address, and labelled identifiers.",
-    "Your job is to remove remaining NATURAL PERSON identifiers, especially unlabelled patient/family/clinician names, and any obvious personal identifier the rules missed.",
+    "Your job is to remove remaining NATURAL PERSON identifiers in patient-facing narrative text, especially unlabelled patient/family names, and any obvious personal identifier the rules missed.",
     "Replace natural-person names with [PERSON]. Replace TAJ with [TAJ], full date of birth with [DOB], addresses with [ADDRESS], phone with [PHONE], email with [EMAIL], and patient/EHR identifiers with [EXTERNAL_ID].",
     "Preserve diagnoses, symptoms, medications, laboratory values, procedures, hospital/institution/department names, geographic names when clinically relevant, and ordinary encounter dates.",
     "Do not rewrite, summarize, translate, correct, or improve the clinical text.",
@@ -287,6 +287,10 @@ export function clinicalTextItems(patient: any): Array<{ key: string; text: stri
   return items;
 }
 
+function isClinicianNameSafeZone(key: string): boolean {
+  return key === "physician" || key.startsWith("tests.consultations.");
+}
+
 function setPath(root: any, path: string, value: string) {
   const parts = path.split(".");
   let cursor = root;
@@ -306,12 +310,10 @@ export async function deidentifyPatient(patientInput: any): Promise<{
   const report = emptyReport();
 
   // The app stores only year-of-birth, not full DOB. Keep it because age is clinically useful.
-  // The accepting physician field is deliberately removed from the permanent corpus because
-  // a natural-person name there is not needed for model training.
-  if (patient.physician) {
-    patient.physician = "[PERSON]";
-    report.labelledName += 1;
-  }
+  // Receiving physician and consultation fields may intentionally contain clinician names
+  // needed in the final medical handover/documentation. These fields still receive the
+  // deterministic TAJ/email/phone/address scrub below, but they are excluded from the AI
+  // person-name scrub so doctor names are preserved exactly.
 
   const items = clinicalTextItems(patient);
   const ruleItems = items.map(({ key, text }) => {
@@ -320,9 +322,13 @@ export async function deidentifyPatient(patientInput: any): Promise<{
     return { key, text: result.text };
   });
 
-  const ai = await aiScrubItems(ruleItems);
+  const safeZoneItems = ruleItems.filter((item) => isClinicianNameSafeZone(item.key));
+  const aiCandidateItems = ruleItems.filter((item) => !isClinicianNameSafeZone(item.key));
+
+  const ai = await aiScrubItems(aiCandidateItems);
   report.aiPerson += ai.personCount;
 
+  for (const item of safeZoneItems) setPath(patient, item.key, item.text);
   for (const item of ai.items) setPath(patient, item.key, item.text);
 
   return { patient, report };
