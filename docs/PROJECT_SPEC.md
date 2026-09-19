@@ -197,8 +197,11 @@ Single EKG entry with standard test status workflow.
 
 - one Radiology entry initially
 - + ADD RADIOLOGY creates another entry
-- each entry includes a type field, e.g. CT, CXR, Ultrasound
+- each entry stores structured body part + modality (RTG / ultrahang / CT / MR)
+- Other / specific permits a free-text test name
+- the combined display type remains available to the AI payload
 - each entry has its own status, result textarea, and Save Result
+- extra radiology entries can be removed
 
 ### 8.6 Consultations
 
@@ -225,6 +228,8 @@ This section records the clinical decision only.
 It is not itself the action that marks a patient completed.
 
 Default disposition is Active / in progress.
+
+Before disposition, the doctor may enter one or more diagnoses as free text (Hungarian or Latin). These are doctor-supplied facts only; the summary model must not infer new diagnoses from test results.
 
 ### Discharged
 
