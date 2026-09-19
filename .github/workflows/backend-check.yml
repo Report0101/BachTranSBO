@@ -1,0 +1,36 @@
+name: Backend checks
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check app.js
+          node --check backend.js
+          node --check config.js
+
+      - name: Type-check Edge Functions
+        run: |
+          deno check supabase/functions/_shared/deidentify.ts
+          deno check supabase/functions/clinical-store/index.ts
+          deno check supabase/functions/generate-summary/index.ts
+
+      - name: Run privacy regression tests
+        run: deno test supabase/functions/_shared/deidentify.test.ts
