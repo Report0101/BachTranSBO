@@ -335,6 +335,20 @@
     );
   }
 
+  async function savePatient(shiftId, patient) {
+    if (!shiftId || !patient) return { removed: 0, report: null };
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "save_patient",
+        shiftId,
+        patient
+      },
+      "Clinical privacy service"
+    );
+  }
+
   async function appendSummaryRevision(patient) {
     if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
       return { removed: 0, report: null };
@@ -371,6 +385,7 @@
     closeShift,
     loadState,
     saveState,
+    savePatient,
     appendSummaryRevision,
     generateSummary
   };
