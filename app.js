@@ -1,30 +1,31 @@
-const STORAGE_KEY = "er_command_center_v6";
-const RETENTION_DAYS = 15;
-
-let state = loadState();
+let state = defaultState();
 let selectedPatientId = null;
+let backendReady = false;
+let currentUser = null;
+let persistTimer = null;
 
 function defaultState() {
   return { shift: null, patients: [], references: [] };
 }
 
-function loadState() {
-  try {
-    return purgeExpired(JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultState());
-  } catch {
-    return defaultState();
-  }
-}
-
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!backendReady || !state.shift) return;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistNow().catch(handleBackendError);
+  }, 350);
 }
 
-function purgeExpired(s) {
-  const cutoff = Date.now() - RETENTION_DAYS * 86400000;
-  s.patients = (s.patients || []).filter((p) => new Date(p.createdAt).getTime() >= cutoff);
-  s.references = (s.references || []).filter((r) => new Date(r.createdAt).getTime() >= cutoff);
-  return s;
+async function persistNow() {
+  if (!backendReady || !state.shift) return;
+  clearTimeout(persistTimer);
+  persistTimer = null;
+  await window.BachSBOBackend.saveState(state);
+}
+
+function handleBackendError(error) {
+  console.error(error);
+  flash("Backend error: " + (error?.message || "Unknown error"));
 }
 
 function nowIso() {
@@ -57,7 +58,13 @@ function isCompleted(patient) {
 }
 
 function newEntry(type = "") {
-  return { type, mode: "waiting", text: "", savedText: "" };
+  return {
+    id: crypto.randomUUID(),
+    type,
+    mode: "waiting",
+    text: "",
+    savedText: ""
+  };
 }
 
 function entryStatus(entry) {
@@ -107,6 +114,8 @@ function renderHeader() {
 
   if (!state.shift) {
     meta.innerHTML = '<span class="metric">No active shift</span>';
+    actions.innerHTML = '<button class="btn" id="signOutBtn">SIGN OUT</button>';
+    document.getElementById("signOutBtn").onclick = signOut;
     return;
   }
 
@@ -121,8 +130,11 @@ function renderHeader() {
     <span class="metric">Completed <b>${completed}</b></span>
   `;
 
-  actions.innerHTML = '<button class="btn danger" id="endShiftBtn">END SHIFT</button>';
+  actions.innerHTML =
+    '<button class="btn danger" id="endShiftBtn">END SHIFT</button>' +
+    '<button class="btn" id="signOutBtn">SIGN OUT</button>';
   document.getElementById("endShiftBtn").onclick = endShiftStep1;
+  document.getElementById("signOutBtn").onclick = signOut;
 }
 
 function renderApp() {
@@ -251,7 +263,7 @@ function addPatient() {
   document.getElementById("newYob").value = "";
   document.getElementById("newComplaint").value = "";
 
-  renderApp();
+  bootstrap();
 }
 
 function loadPatientForm() {
@@ -470,14 +482,19 @@ function wireCard(card, entry, key) {
     }
   };
 
-  save.onclick = () => {
+  save.onclick = async () => {
     if (!entry.text.trim()) return;
 
     entry.savedText = entry.text;
     entry.mode = "waiting";
-    persist();
     refreshVisual();
-    flash("Result saved.");
+
+    try {
+      await persistNow();
+      flash("Result saved.");
+    } catch (error) {
+      handleBackendError(error);
+    }
   };
 }
 
@@ -538,13 +555,17 @@ function collectForm() {
   return patient;
 }
 
-function savePatient() {
+async function savePatient() {
   const patient = collectForm();
   if (!patient) return;
 
-  persist();
-  renderApp();
-  flash("Patient saved.");
+  try {
+    await persistNow();
+    renderApp();
+    flash("Patient saved.");
+  } catch (error) {
+    handleBackendError(error);
+  }
 }
 
 function updateDispositionVisibility() {
@@ -719,16 +740,13 @@ async function finalizeSummary() {
   patient.summaryFinalizedAt = nowIso();
   patient.updatedAt = nowIso();
 
-  state.references.push({
-    id: crypto.randomUUID(),
-    patientId: patient.id,
-    shiftId: patient.shiftId,
-    text,
-    createdAt: nowIso(),
-    source: "finalized_summary"
-  });
-
-  persist();
+  try {
+    await persistNow();
+    await window.BachSBOBackend.appendSummaryRevision(patient);
+  } catch (error) {
+    handleBackendError(error);
+    return;
+  }
 
   try {
     await navigator.clipboard.writeText(text);
@@ -758,19 +776,16 @@ function renderSummaryStatus(patient) {
     : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
 }
 
-function startShift() {
+async function startShift() {
   if (state.shift) return;
 
-  state.shift = {
-    id: crypto.randomUUID(),
-    startedAt: nowIso(),
-    status: "active"
-  };
-
-  selectedPatientId = null;
-
-  persist();
-  renderApp();
+  try {
+    state.shift = await window.BachSBOBackend.startShift();
+    selectedPatientId = null;
+    renderApp();
+  } catch (error) {
+    handleBackendError(error);
+  }
 }
 
 function endShiftStep1() {
@@ -808,13 +823,23 @@ function endShiftStep2() {
     endFinal.disabled = input.value !== "END";
   };
 
-  endFinal.onclick = () => {
-    state.shift = null;
-    selectedPatientId = null;
+  endFinal.onclick = async () => {
+    const closingShiftId = state.shift?.id;
+    if (!closingShiftId) return;
 
-    persist();
-    closeModal();
-    renderApp();
+    endFinal.disabled = true;
+
+    try {
+      await persistNow();
+      await window.BachSBOBackend.closeShift(closingShiftId);
+      state = defaultState();
+      selectedPatientId = null;
+      closeModal();
+      renderApp();
+    } catch (error) {
+      endFinal.disabled = false;
+      handleBackendError(error);
+    }
   };
 }
 
@@ -831,6 +856,88 @@ function modal(inner) {
 
 function closeModal() {
   document.getElementById("modalHost").innerHTML = "";
+}
+
+async function signOut() {
+  try {
+    await window.BachSBOBackend.signOut();
+    state = defaultState();
+    selectedPatientId = null;
+    backendReady = false;
+    window.location.reload();
+  } catch (error) {
+    handleBackendError(error);
+  }
+}
+
+function showSetupRequired() {
+  modal(`
+    <h3>Backend setup required</h3>
+    <p>This branch uses Supabase instead of browser clinical-data storage.</p>
+    <p>Configure <code>config.js</code> and run <code>supabase/migrations/001_backend_v1.sql</code>.</p>
+    <p class="subtle">See docs/BACKEND_SETUP.md.</p>
+  `);
+}
+
+function showSignIn() {
+  modal(`
+    <h3>Sign in</h3>
+    <p>Enter the email for your personal BachTranSBO account.</p>
+    <div class="field">
+      <label>Email</label>
+      <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="sendLoginLink">SEND SIGN-IN LINK</button>
+    </div>
+    <div id="authMessage" class="subtle"></div>
+  `);
+
+  const email = document.getElementById("authEmail");
+  const button = document.getElementById("sendLoginLink");
+  const message = document.getElementById("authMessage");
+
+  button.onclick = async () => {
+    if (!email.value.trim()) return;
+    button.disabled = true;
+    message.textContent = "Sending…";
+    try {
+      await window.BachSBOBackend.signInWithOtp(email.value.trim());
+      message.textContent = "Sign-in link sent. Open it in this browser.";
+    } catch (error) {
+      message.textContent = error?.message || "Could not send sign-in link.";
+      button.disabled = false;
+    }
+  };
+}
+
+async function bootstrap() {
+  try {
+    const result = await window.BachSBOBackend.init();
+
+    if (!result.configured) {
+      showSetupRequired();
+      return;
+    }
+
+    if (!result.session) {
+      showSignIn();
+      return;
+    }
+
+    currentUser = result.session.user;
+    state = await window.BachSBOBackend.loadState();
+    backendReady = true;
+    closeModal();
+    renderApp();
+  } catch (error) {
+    console.error(error);
+    modal(`
+      <h3>Backend initialization failed</h3>
+      <p>${esc(error?.message || "Unknown error")}</p>
+      <p class="subtle">Check Supabase configuration and database migration.</p>
+    `);
+  }
 }
 
 function flash(message) {
