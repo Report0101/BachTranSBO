@@ -37,20 +37,27 @@ button{cursor:pointer}
 .btn.danger{background:#ef4444;color:#fff}
 .btn.small{padding:7px 10px;font-size:13px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.layout{display:grid;grid-template-columns:190px 1fr;min-height:calc(100vh - 70px)}
-.sidebar{background:#fff;border-right:1px solid var(--line);padding:16px}
-.nav-title{
-  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);margin:10px 8px 8px
+.workspace-nav{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:9px 22px;background:#fff;border-bottom:1px solid var(--line);
+  overflow-x:auto
+}
+.workspace-nav-main,.workspace-nav-future{
+  display:flex;align-items:center;gap:6px;flex:0 0 auto
+}
+.nav-future-label{
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin:0 3px 0 8px;font-weight:800
 }
 .nav-item{
-  width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding:11px 12px;margin:4px 0;border-radius:9px;border:none;background:transparent;
-  color:#374151;text-align:left;font-weight:650
+  width:auto;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:8px 11px;margin:0;border-radius:9px;border:none;background:transparent;
+  color:#374151;text-align:left;font-weight:700;white-space:nowrap
 }
+.nav-item small{font-size:9px;font-weight:850}
 .nav-item.active{background:var(--accent-soft);color:var(--accent)}
-.nav-item.disabled{color:#9ca3af;background:#eef0f3;cursor:not-allowed}
-.main{padding:22px}
+.nav-item.disabled{color:#9ca3af;background:#f3f4f6;cursor:not-allowed}
+.main{padding:22px;min-height:calc(100vh - 120px)}
 .empty{min-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center}
 .empty-card{
   width:min(520px,92vw);background:#fff;border:1px solid var(--line);
@@ -77,6 +84,32 @@ input,select,textarea{
   background:#fff;color:var(--text)
 }
 textarea{min-height:92px;resize:vertical}
+.record-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.narrative-field{
+  border:1px solid var(--warn-line);border-radius:12px;padding:12px;
+  background:var(--warn-bg);transition:.15s ease
+}
+.narrative-field.result{background:var(--ok-bg);border-color:var(--ok-line)}
+.narrative-field.none{background:var(--gray-bg);border-color:var(--gray-line)}
+.narrative-field.result textarea{border-color:var(--ok-line);background:#f7fff9}
+.narrative-field.none textarea{background:#e5e7eb}
+.narrative-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px
+}
+.narrative-head label{margin-bottom:0}
+.narrative-actions{display:flex;align-items:center;gap:7px}
+.field-state{
+  display:inline-block;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:850
+}
+.field-state.waiting{background:#ffedd5;color:var(--warn)}
+.field-state.result{background:#dcfce7;color:var(--ok)}
+.field-state.none{background:#e5e7eb;color:var(--gray)}
+.none-toggle{background:#fff;border:1px solid var(--gray-line)}
+.none-toggle.active{background:#6b7280;color:#fff}
+.case-readonly{opacity:.94}
+.case-readonly input:disabled,.case-readonly textarea:disabled,.case-readonly select:disabled{
+  color:#4b5563;background:#f8fafc
+}
 .inline{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .inline3{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:10px}
 .patient-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -169,14 +202,17 @@ textarea{min-height:92px;resize:vertical}
 .mt16{margin-top:16px}
 .table-wrap{padding:0 10px 12px;overflow:auto}
 @media (max-width:1150px){
-  .layout{grid-template-columns:1fr}
-  .sidebar{border-right:none;border-bottom:1px solid var(--line)}
   .grid2{grid-template-columns:1fr}
+  .workspace-nav{align-items:flex-start}
 }
 @media (max-width:760px){
   .inline,.inline3,.test-grid,.dynamic-grid{grid-template-columns:1fr}
   .main{padding:12px}
   .topbar{align-items:flex-start;flex-direction:column}
+  .workspace-nav{padding:8px 12px;flex-direction:column;align-items:stretch}
+  .workspace-nav-main,.workspace-nav-future{overflow-x:auto}
+  .nav-future-label{margin-left:0}
+  .narrative-head{align-items:flex-start;flex-direction:column}
 }
 
 .learning-head{

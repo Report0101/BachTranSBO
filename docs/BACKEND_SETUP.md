@@ -23,6 +23,7 @@ Apply all migrations in order:
 9. `supabase/migrations/009_advisor_cleanup.sql`
 10. `supabase/migrations/010_preview_v5_clinical_fields.sql`
 11. `supabase/migrations/011_atomic_finalize.sql`
+12. `supabase/migrations/012_required_field_states.sql`
 
 The first migration creates:
 
@@ -51,6 +52,8 @@ The ninth migration addresses advisor findings and tightens database definitions
 The tenth migration adds doctor-entered diagnoses plus structured radiology fields used by the preview-v5-compatible UI.
 
 The eleventh migration adds a server-only atomic finalization RPC so the completed case, synchronized tests, finalized summary, and immutable corpus revision commit or roll back together. Embedding generation remains best-effort after the database transaction.
+
+The twelfth migration persists required narrative-field workflow states (provided vs none/not applicable), keeps atomic finalization in sync with those fields, and adds an atomic completed-case reopen RPC.
 
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 

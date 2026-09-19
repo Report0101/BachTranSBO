@@ -147,6 +147,44 @@ async function syncTests(db: any, ownerId: string, patient: any) {
   }
 }
 
+function patientWorkflowBlockers(patient: any) {
+  const blockers: string[] = [];
+
+  const requiredNarrative = [
+    ["Complaint", patient.complaint, patient.complaintSkipped],
+    ["Patient history", patient.history, patient.historySkipped],
+    ["Physical examination", patient.physical, patient.physicalSkipped],
+    ["Therapy", patient.therapy, patient.therapySkipped],
+    ["Clinical course", patient.course, patient.courseSkipped],
+  ];
+
+  for (const [label, value, skipped] of requiredNarrative) {
+    if (!skipped && !String(value || "").trim()) blockers.push(String(label));
+  }
+
+  const testEntries = [
+    ...(patient.tests?.labs || []).map((entry: any, i: number) => ["Lab " + (i + 1), entry]),
+    ["EKG", patient.tests?.ekg],
+    ["AVG / VVG", patient.tests?.gas],
+    ...(patient.tests?.radiology || []).map((entry: any, i: number) => [
+      String(entry?.type || "").trim() || "Radiology " + (i + 1),
+      entry,
+    ]),
+    ...(patient.tests?.consultations || []).map((entry: any, i: number) => [
+      String(entry?.type || "").trim() || "Consultation " + (i + 1),
+      entry,
+    ]),
+  ];
+
+  for (const [label, entry] of testEntries) {
+    if (!entry) continue;
+    if (entry.mode === "notordered") continue;
+    if (!String(entry.text || "").trim()) blockers.push(String(label));
+  }
+
+  return blockers;
+}
+
 function snapshotTest(entry: any, category: string, sequence: number) {
   const mode = entry?.mode || "waiting";
   const text = String(entry?.text || "").trim();
@@ -193,13 +231,18 @@ function corpusSnapshot(patient: any) {
     age,
     main_complaint: patient.mainComplaint || "",
     complaint: patient.complaint || "",
+    complaint_status: patient.complaintSkipped ? "none" : "provided",
     history: patient.history || "",
+    history_status: patient.historySkipped ? "none" : "provided",
     physical_examination: patient.physical || "",
+    physical_examination_status: patient.physicalSkipped ? "none" : "provided",
     diagnoses: patient.diagnoses || "",
     tests,
     others: patient.others || "",
     therapy: patient.therapy || "",
+    therapy_skipped: Boolean(patient.therapySkipped),
     clinical_course: patient.course || "",
+    clinical_course_skipped: Boolean(patient.courseSkipped),
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [],
     admission: {
@@ -276,12 +319,17 @@ async function saveState(db: any, ownerId: string, inputState: any) {
       year_of_birth: p.yob ? Number(p.yob) : null,
       main_complaint: p.mainComplaint || "",
       complaint: p.complaint || "",
+      complaint_skipped: Boolean(p.complaintSkipped),
       history: p.history || "",
+      history_skipped: Boolean(p.historySkipped),
       physical_exam: p.physical || "",
+      physical_exam_skipped: Boolean(p.physicalSkipped),
       diagnoses: p.diagnoses || "",
       others: p.others || "",
       therapy: p.therapy || "",
+      therapy_skipped: Boolean(p.therapySkipped),
       clinical_course: p.course || "",
+      clinical_course_skipped: Boolean(p.courseSkipped),
       disposition: p.disposition || "",
       recommendations: p.recommendations || [""],
       hospital: p.hospital || "",
@@ -371,12 +419,17 @@ async function savePatient(
       year_of_birth: patient.yob ? Number(patient.yob) : null,
       main_complaint: patient.mainComplaint || "",
       complaint: patient.complaint || "",
+      complaint_skipped: Boolean(patient.complaintSkipped),
       history: patient.history || "",
+      history_skipped: Boolean(patient.historySkipped),
       physical_exam: patient.physical || "",
+      physical_exam_skipped: Boolean(patient.physicalSkipped),
       diagnoses: patient.diagnoses || "",
       others: patient.others || "",
       therapy: patient.therapy || "",
+      therapy_skipped: Boolean(patient.therapySkipped),
       clinical_course: patient.course || "",
+      clinical_course_skipped: Boolean(patient.courseSkipped),
       disposition: patient.disposition || "",
       recommendations: patient.recommendations || [""],
       hospital: patient.hospital || "",
@@ -445,6 +498,13 @@ async function finalizePatient(
     throw new Error("Finalized summary is required.");
   }
 
+  const blockers = patientWorkflowBlockers(patient);
+  if (blockers.length) {
+    throw new Error(
+      `Case cannot be finalized while orange fields remain: ${blockers.join(", ")}.`,
+    );
+  }
+
   const now = new Date().toISOString();
   const snapshot = corpusSnapshot(patient);
   const caseRow = {
@@ -456,12 +516,17 @@ async function finalizePatient(
     year_of_birth: patient.yob ? Number(patient.yob) : null,
     main_complaint: patient.mainComplaint || "",
     complaint: patient.complaint || "",
+    complaint_skipped: Boolean(patient.complaintSkipped),
     history: patient.history || "",
+    history_skipped: Boolean(patient.historySkipped),
     physical_exam: patient.physical || "",
+    physical_exam_skipped: Boolean(patient.physicalSkipped),
     diagnoses: patient.diagnoses || "",
     others: patient.others || "",
     therapy: patient.therapy || "",
+    therapy_status: patient.therapySkipped ? "none" : "provided",
     clinical_course: patient.course || "",
+    clinical_course_status: patient.courseSkipped ? "none" : "provided",
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [""],
     hospital: patient.hospital || "",
@@ -536,6 +601,29 @@ async function finalizePatient(
     revisionId,
     embedded: !embeddingWarning,
     embeddingWarning,
+  };
+}
+
+async function reopenCase(
+  db: any,
+  ownerId: string,
+  shiftId: string,
+  caseId: string,
+) {
+  if (!shiftId || !caseId) throw new Error("Case reopen payload is incomplete.");
+
+  const { data: reopenedAt, error } = await db.rpc("reopen_case_atomic", {
+    p_owner_id: ownerId,
+    p_shift_id: shiftId,
+    p_case_id: caseId,
+  });
+
+  if (error) throw error;
+  if (!reopenedAt) throw new Error("Atomic case reopen returned no timestamp.");
+
+  return {
+    caseId,
+    reopenedAt,
   };
 }
 
@@ -644,6 +732,17 @@ Deno.serve(async (req) => {
           user.id,
           String(body.shiftId || ""),
           body.patient,
+        ),
+      );
+    }
+
+    if (body?.action === "reopen_case") {
+      return json(
+        await reopenCase(
+          db,
+          user.id,
+          String(body.shiftId || ""),
+          String(body.caseId || ""),
         ),
       );
     }

@@ -88,6 +88,40 @@ function testStatus(row: any) {
   return "waiting_for_result";
 }
 
+function workflowBlockers(caseRow: any, tests: any[]) {
+  const blockers: string[] = [];
+
+  const requiredNarrative = [
+    ["Complaint", caseRow.complaint, caseRow.complaint_skipped],
+    ["Patient history", caseRow.history, caseRow.history_skipped],
+    ["Physical examination", caseRow.physical_exam, caseRow.physical_exam_skipped],
+    ["Therapy", caseRow.therapy, caseRow.therapy_skipped],
+    ["Clinical course", caseRow.clinical_course, caseRow.clinical_course_skipped],
+  ];
+
+  for (const [label, value, skipped] of requiredNarrative) {
+    if (!skipped && !String(value || "").trim()) blockers.push(String(label));
+  }
+
+  for (const row of tests || []) {
+    if (testStatus(row) !== "waiting_for_result") continue;
+    const category = String(row.category || "Test");
+    const sequence = Number(row.sequence || 1);
+    const label =
+      category === "lab" ? `Lab ${sequence}` :
+      category === "ekg" ? "EKG" :
+      category === "gas" ? "AVG / VVG" :
+      category === "radiology"
+        ? String(row.subtype || "").trim() || `Radiology ${sequence}`
+        : category === "consultation"
+        ? String(row.subtype || "").trim() || `Consultation ${sequence}`
+        : `${category} ${sequence}`;
+    blockers.push(label);
+  }
+
+  return blockers;
+}
+
 function casePayload(caseRow: any, tests: any[]) {
   const age = caseRow.year_of_birth
     ? new Date().getUTCFullYear() - Number(caseRow.year_of_birth)
@@ -99,8 +133,11 @@ function casePayload(caseRow: any, tests: any[]) {
     age,
     main_complaint: caseRow.main_complaint,
     complaint: caseRow.complaint,
+    complaint_status: caseRow.complaint_skipped ? "none" : "provided",
     history: caseRow.history,
+    history_status: caseRow.history_skipped ? "none" : "provided",
     physical_examination: caseRow.physical_exam,
+    physical_examination_status: caseRow.physical_exam_skipped ? "none" : "provided",
     diagnoses: caseRow.diagnoses || "",
     tests: tests.map((row) => ({
       category: row.category,
@@ -117,7 +154,9 @@ function casePayload(caseRow: any, tests: any[]) {
     })),
     others: caseRow.others,
     therapy: caseRow.therapy,
+    therapy_status: caseRow.therapy_skipped ? "none" : "provided",
     clinical_course: caseRow.clinical_course,
+    clinical_course_status: caseRow.clinical_course_skipped ? "none" : "provided",
     disposition: caseRow.disposition,
     recommendations: caseRow.recommendations,
     admission: {
@@ -257,6 +296,13 @@ Deno.serve(async (req) => {
       .order("sequence", { ascending: true });
 
     if (testsError) throw testsError;
+
+    const blockers = workflowBlockers(caseRow, tests || []);
+    if (blockers.length) {
+      throw new Error(
+        `Summary generation is locked until these orange fields are resolved: ${blockers.join(", ")}.`,
+      );
+    }
 
     const { data: skill, error: skillError } = await db
       .from("skill_versions")

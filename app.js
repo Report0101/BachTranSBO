@@ -7,22 +7,94 @@ let currentView = "patients";
 let uiLang = navigator.language?.toLowerCase().startsWith("hu") ? "hu" : "en";
 const I18N = {
   en: {
+    casesNav:"Cases", aiLearningNav:"AI Learning", adminNav:"Admin",
+    futureModules:"Future modules", analytics:"Analytics", archive:"Archive",
+    integrations:"Integrations", planned:"PLANNED",
     noActiveShift:"No active shift", oneShiftOnly:"Only one shift can be active at a time.",
-    startShift:"START SHIFT", importPatient:"Import new patient",
-    autoId:"ID automatically starts from 01 in each shift.", sex:"Sex", yob:"Year of birth",
-    mainComplaint:"Main complaint", addPatient:"ADD PATIENT", patientRecord:"Patient record",
-    waitingOnly:"Status shows tests currently waiting for result.",
-    diagnoses:"Diagnoses", disposition:"Disposition", finalDecision:"4. Final decision / disposition"
+    startShift:"START SHIFT", importCase:"Import new case",
+    autoId:"Case ID automatically starts from 01 in each shift.", sex:"Sex", age:"Age", status:"Status", yob:"Year of birth",
+    mainComplaint:"Main complaint", addCase:"ADD CASE", caseRecord:"Case list",
+    caseStatusHint:"Status shows unresolved items for each case.",
+    selectCasePrompt:"Select a case from the list.", noCaseSelected:"No case selected.",
+    reopenCase:"REOPEN CASE", sectionClinical:"1. Clinical", complaint:"Complaint",
+    patientHistory:"Medical history", markNone:"NONE", required:"REQUIRED", complete:"COMPLETE", none:"NONE",
+    sectionTests:"2. Tests and examination",
+    testLegend:"Orange = unresolved. Enter a result to turn green, or mark Not ordered to turn grey.",
+    physicalExam:"Physical examination — main points / status",
+    lab:"Lab", addLab:"+ ADD LAB", ekg:"EKG", bloodGas:"Blood gas (ABG / VBG)",
+    radiology:"Radiology", addRadiology:"+ ADD IMAGING",
+    consultations:"Consultations", addConsultation:"+ ADD CONSULTATION", others:"Others",
+    sectionCourse:"3. Treatment and course", therapy:"Therapy",
+    clinicalCourse:"Clinical course / case status change",
+    diagnoses:"Diagnoses", disposition:"Disposition",
+    finalDecision:"4. Final decision / disposition",
+    finalDecisionInfo:"Disposition records the clinical decision. The case closes only after the Summary is finalized.",
+    homePlan:"Recommendation and plan at home", addRecommendation:"+ Add recommendation",
+    hospital:"Hospital", ward:"Ward / department", acceptingPhysician:"Accepting physician",
+    additionalNote:"Additional note", outcome:"Outcome", details:"Details",
+    caseSummary:"5. Case summary",
+    summaryInfo:"Generate Summary uses the de-identified case and the active SBO Documentation Skill. Review and edit the draft before finalizing.",
+    generateSummary:"✨ GENERATE SUMMARY", summaryEditable:"Summary — editable",
+    finalizeSummary:"FINALIZE SUMMARY", saveCase:"SAVE CASE",
+    diagnosesNote:"Doctor-entered diagnoses only. Summary generation must not infer new diagnoses from test results.",
+    learningDesc:"Doctor-approved learning from finalized summaries. Nothing here auto-edits the master Skill.",
+    refresh:"REFRESH", finalizedCorpus:"Finalized corpus", activeSkill:"Active Skill", activeStyle:"Active style",
+    writingStyle:"Writing style", styleDesc:"Generated → Finalized pairs. Candidate requires explicit activation.",
+    generateCandidate:"GENERATE CANDIDATE", skillSuggestions:"Skill improvement suggestions",
+    skillSuggestionsDesc:"Advisory only. Accepting never modifies Skill versions automatically.",
+    analyzeEdits:"ANALYZE EDITS", adminDesc:"Single-owner account security settings.",
+    account:"Account", accountDesc:"Only the configured owner account can use this app.",
+    changePassword:"Change password", passwordRule:"Minimum 6 characters. No special complexity rule is required by this app.",
+    currentPassword:"Current password", newPassword:"New password", confirmPassword:"Confirm new password",
+    changePasswordButton:"CHANGE PASSWORD", signOut:"SIGN OUT"
   },
   hu: {
+    casesNav:"Esetek", aiLearningNav:"AI tanulás", adminNav:"Admin",
+    futureModules:"Későbbi modulok", analytics:"Analitika", archive:"Archívum",
+    integrations:"Integrációk", planned:"TERVEZETT",
     noActiveShift:"Nincs aktív műszak", oneShiftOnly:"Egyszerre csak egy aktív műszak lehet.",
-    startShift:"MŰSZAK INDÍTÁSA", importPatient:"Új beteg felvétele",
-    autoId:"A betegazonosító minden műszakban 01-től indul.", sex:"Nem", yob:"Születési év",
-    mainComplaint:"Fő panasz", addPatient:"BETEG HOZZÁADÁSA", patientRecord:"Beteglista",
-    waitingOnly:"A státusz csak az eredményre váró vizsgálatokat mutatja.",
-    diagnoses:"Diagnózisok", disposition:"Diszpozíció", finalDecision:"4. Végső döntés / diszpozíció"
+    startShift:"MŰSZAK INDÍTÁSA", importCase:"Új eset felvétele",
+    autoId:"Az esetazonosító minden műszakban 01-től indul.", sex:"Nem", age:"Életkor", status:"Státusz", yob:"Születési év",
+    mainComplaint:"Fő panasz", addCase:"ESET HOZZÁADÁSA", caseRecord:"Esetlista",
+    caseStatusHint:"A státusz az eset még rendezetlen tételeit mutatja.",
+    selectCasePrompt:"Válasszon egy esetet a listából.", noCaseSelected:"Nincs kiválasztott eset.",
+    reopenCase:"ESET ÚJRANYITÁSA", sectionClinical:"1. Klinikai adatok", complaint:"Jelen panaszok",
+    patientHistory:"Anamnézis", markNone:"NINCS", required:"KÖTELEZŐ", complete:"KÉSZ", none:"NINCS",
+    sectionTests:"2. Vizsgálatok és fizikális státusz",
+    testLegend:"Narancs = rendezetlen. Eredmény megadásakor zöldre vált; ha nem történt vizsgálat, jelölje „Nem történt” állapotra.",
+    physicalExam:"Fizikális vizsgálat — lényeges eltérések / státusz",
+    lab:"Labor", addLab:"+ LABOR HOZZÁADÁSA", ekg:"EKG", bloodGas:"Vérgáz (AVG / VVG)",
+    radiology:"Képalkotó vizsgálatok", addRadiology:"+ KÉPALKOTÓ HOZZÁADÁSA",
+    consultations:"Konzíliumok", addConsultation:"+ KONZÍLIUM HOZZÁADÁSA", others:"Egyéb",
+    sectionCourse:"3. Terápia és kórlefolyás", therapy:"Terápia",
+    clinicalCourse:"Kórlefolyás / állapotváltozás",
+    diagnoses:"Diagnózisok", disposition:"Diszpozíció",
+    finalDecision:"4. Végső döntés / diszpozíció",
+    finalDecisionInfo:"A diszpozíció a végső ellátási döntést rögzíti. Az eset csak az összefoglaló véglegesítésekor zárul le.",
+    homePlan:"Otthoni javaslat és további terv", addRecommendation:"+ Javaslat hozzáadása",
+    hospital:"Kórház", ward:"Osztály / részleg", acceptingPhysician:"Átvevő orvos",
+    additionalNote:"Kiegészítő megjegyzés", outcome:"Kimenetel", details:"Részletek",
+    caseSummary:"5. Epikrízis",
+    summaryInfo:"Az összefoglaló a deidentifikált esetadatokból és az aktív SBO Documentation Skill alapján készül. Véglegesítés előtt ellenőrizze és szükség szerint szerkessze.",
+    generateSummary:"✨ ÖSSZEFOGLALÓ GENERÁLÁSA", summaryEditable:"Összefoglaló — szerkeszthető",
+    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE", saveCase:"ESET MENTÉSE",
+    diagnosesNote:"Csak az orvos által rögzített diagnózisok. Az összefoglaló nem állíthat fel új diagnózist a vizsgálati eredményekből.",
+    learningDesc:"Orvos által jóváhagyott tanulás a véglegesített összefoglalókból. A rendszer nem módosítja automatikusan a fő Skill-t.",
+    refresh:"FRISSÍTÉS", finalizedCorpus:"Véglegesített korpusz", activeSkill:"Aktív Skill", activeStyle:"Aktív stílus",
+    writingStyle:"Írási stílus", styleDesc:"Generált → véglegesített párok. A jelölt csak külön jóváhagyással aktiválható.",
+    generateCandidate:"JELÖLT GENERÁLÁSA", skillSuggestions:"Skill-fejlesztési javaslatok",
+    skillSuggestionsDesc:"Csak javaslat. Az elfogadás nem módosítja automatikusan a Skill-verziókat.",
+    analyzeEdits:"SZERKESZTÉSEK ELEMZÉSE", adminDesc:"Egyszemélyes fiók biztonsági beállításai.",
+    account:"Fiók", accountDesc:"Az alkalmazást csak a beállított tulajdonosi fiók használhatja.",
+    changePassword:"Jelszó módosítása", passwordRule:"Legalább 6 karakter. Az alkalmazás nem ír elő további összetettségi szabályt.",
+    currentPassword:"Jelenlegi jelszó", newPassword:"Új jelszó", confirmPassword:"Új jelszó megerősítése",
+    changePasswordButton:"JELSZÓ MÓDOSÍTÁSA", signOut:"KIJELENTKEZÉS"
   }
 };
+
+function t(key) {
+  return I18N[uiLang]?.[key] || I18N.en[key] || key;
+}
 
 function applyLanguage(lang) {
   uiLang = I18N[lang] ? lang : "en";
@@ -155,6 +227,15 @@ function normalizeRadiologyEntry(entry) {
   if (entry.bodyPart === undefined) entry.bodyPart = "";
   if (entry.modality === undefined) entry.modality = "";
   if (entry.otherTest === undefined) entry.otherTest = "";
+
+  const legacyModality = String(entry.modality || "").trim().toLowerCase();
+  if (["ultrahang", "uh", "ultrasound"].includes(legacyModality)) {
+    entry.modality = "US";
+  }
+  if (["kontrasztos ct", "contrast ct", "ct contrast"].includes(legacyModality)) {
+    entry.modality = "Contrast CT";
+  }
+
   if (!entry.bodyPart && !entry.modality && !entry.otherTest && (entry.type || "").trim()) {
     entry.modality = "other";
     entry.otherTest = (entry.type || "").trim();
@@ -175,6 +256,126 @@ function entryStatus(entry) {
   if (entry.mode === "notordered") return "notordered";
   if ((entry.text || "").trim()) return "result";
   return "waiting";
+}
+
+const NARRATIVE_FIELDS = {
+  complaint: {
+    inputId: "fComplaint",
+    valueProp: "complaint",
+    skipProp: "complaintSkipped",
+    labelKey: "complaint"
+  },
+  history: {
+    inputId: "fHistory",
+    valueProp: "history",
+    skipProp: "historySkipped",
+    labelKey: "patientHistory"
+  },
+  physical: {
+    inputId: "fPhysical",
+    valueProp: "physical",
+    skipProp: "physicalSkipped",
+    labelKey: "physicalExam"
+  },
+  therapy: {
+    inputId: "fTherapy",
+    valueProp: "therapy",
+    skipProp: "therapySkipped",
+    labelKey: "therapy"
+  },
+  course: {
+    inputId: "fCourse",
+    valueProp: "course",
+    skipProp: "courseSkipped",
+    labelKey: "clinicalCourse"
+  }
+};
+
+function narrativeStatus(patient, key) {
+  const config = NARRATIVE_FIELDS[key];
+  if (!config || !patient) return "waiting";
+  if (patient[config.skipProp]) return "none";
+  if (String(patient[config.valueProp] || "").trim()) return "result";
+  return "waiting";
+}
+
+function narrativeWaitingLabels(patient) {
+  return Object.entries(NARRATIVE_FIELDS)
+    .filter(([key]) => narrativeStatus(patient, key) === "waiting")
+    .map(([, config]) => t(config.labelKey));
+}
+
+function workflowBlockers(patient) {
+  return [...narrativeWaitingLabels(patient), ...waitingLabels(patient)];
+}
+
+function refreshNarrativeField(patient, key) {
+  const config = NARRATIVE_FIELDS[key];
+  if (!config || !patient) return;
+
+  const wrapper = document.querySelector(`[data-narrative-field="${key}"]`);
+  const input = document.getElementById(config.inputId);
+  const stateEl = document.querySelector(`[data-field-state="${key}"]`);
+  const noneButton = document.querySelector(`[data-none-toggle="${key}"]`);
+  if (!wrapper || !input || !stateEl || !noneButton) return;
+
+  const status = narrativeStatus(patient, key);
+  wrapper.classList.remove("waiting", "result", "none");
+  wrapper.classList.add(status);
+
+  stateEl.className = `field-state ${status}`;
+  stateEl.textContent = status === "result"
+    ? t("complete")
+    : status === "none"
+    ? t("none")
+    : t("required");
+
+  noneButton.classList.toggle("active", status === "none");
+  input.disabled = status === "none" || isCompleted(patient);
+  noneButton.disabled = isCompleted(patient);
+}
+
+function refreshNarrativeFields(patient) {
+  Object.keys(NARRATIVE_FIELDS).forEach((key) => refreshNarrativeField(patient, key));
+}
+
+function wireNarrativeFields(patient) {
+  Object.entries(NARRATIVE_FIELDS).forEach(([key, config]) => {
+    const input = document.getElementById(config.inputId);
+    const noneButton = document.querySelector(`[data-none-toggle="${key}"]`);
+    if (!input || !noneButton) return;
+
+    input.oninput = () => {
+      patient[config.valueProp] = input.value;
+      if (input.value.trim()) patient[config.skipProp] = false;
+      persist();
+      refreshNarrativeField(patient, key);
+      updateStatusCell(patient);
+      refreshSummaryControls(patient);
+    };
+
+    noneButton.onclick = () => {
+      if (isCompleted(patient)) return;
+
+      const turningOn = !patient[config.skipProp];
+      if (turningOn && String(patient[config.valueProp] || "").trim()) {
+        flash(uiLang === "hu"
+          ? "A NINCS állapot előtt törölje a mező tartalmát."
+          : "Clear the field before marking it None.");
+        return;
+      }
+
+      patient[config.skipProp] = turningOn;
+      if (turningOn) {
+        patient[config.valueProp] = "";
+        input.value = "";
+      }
+      persist();
+      refreshNarrativeField(patient, key);
+      updateStatusCell(patient);
+      refreshSummaryControls(patient);
+    };
+  });
 }
 
 function patientTestEntries(patient) {
@@ -202,20 +403,20 @@ function refreshSummaryControls(patient) {
   const gate = document.getElementById("summaryGate");
   if (!generate || !finalize || !gate || !patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   const blocked = blockers.length > 0;
   const completed = isCompleted(patient);
   const message = completed
     ? (uiLang === "hu"
-      ? "A case lezárt. Az összefoglaló véglegesítve."
+      ? "Az eset lezárt. Az összefoglaló véglegesítve."
       : "Case closed. Summary finalized.")
     : blocked
     ? (uiLang === "hu"
-      ? `Az összefoglaló le van tiltva. Rendezendő: ${blockers.join(", ")}. Adjon meg eredményt, vagy jelölje Not ordered státuszra.`
-      : `Summary locked. Resolve: ${blockers.join(", ")}. Enter a result or mark it Not ordered.`)
+      ? `Az összefoglaló nem készíthető el. Rendezendő: ${blockers.join(", ")}. Töltse ki a mezőt, vagy jelölje NINCS / NEM TÖRTÉNT állapotra.`
+      : `Summary locked. Resolve: ${blockers.join(", ")}. Fill the field, or mark it None / Not ordered.`)
     : (uiLang === "hu"
-      ? "Minden vizsgálat rendezett. Az összefoglaló elkészíthető."
-      : "All tests are resolved. Summary can be generated.");
+      ? "Minden kötelező mező és vizsgálat rendezett. Az összefoglaló elkészíthető."
+      : "All required fields and tests are resolved. Summary can be generated.");
 
   gate.textContent = message;
   gate.className = `summary-gate ${completed || !blocked ? "ready" : "blocked"}`;
@@ -247,13 +448,13 @@ function waitingLabels(patient) {
 
   patient.tests.radiology.forEach((entry, i) => {
     if (entryStatus(entry) === "waiting") {
-      out.push(radiologyType(entry) || `Radiology ${i + 1}`);
+      out.push(radiologyType(entry) || `${t("radiology")} ${i + 1}`);
     }
   });
 
   patient.tests.consultations.forEach((entry, i) => {
     if (entryStatus(entry) === "waiting") {
-      out.push(entry.type?.trim() || `Consultation ${i + 1}`);
+      out.push(entry.type?.trim() || `${uiLang === "hu" ? "Konzílium" : "Consultation"} ${i + 1}`);
     }
   });
 
@@ -280,7 +481,7 @@ function renderHeader() {
 
   meta.innerHTML = `
     <span class="shift-pill"><span class="dot"></span> ${hu ? "AKTÍV MŰSZAK" : "SHIFT ACTIVE"} • ${hu ? "Kezdés" : "Started"} ${fmtTime(state.shift.startedAt)}</span>
-    <span class="metric">${hu ? "Betegek" : "Patients"} <b>${pts.length}</b></span>
+    <span class="metric">${hu ? "Esetek" : "Cases"} <b>${pts.length}</b></span>
     <span class="metric">${hu ? "Aktív" : "Active"} <b>${active}</b></span>
     <span class="metric">${hu ? "Lezárt" : "Completed"} <b>${completed}</b></span>
   `;
@@ -394,14 +595,14 @@ function renderPatients() {
     });
 
   orderedPatients.forEach((patient) => {
-    const waits = waitingLabels(patient);
+    const waits = workflowBlockers(patient);
     const statusHtml = isCompleted(patient)
-      ? '<span class="badge done">COMPLETED</span>'
+      ? `<span class="badge done">${uiLang === "hu" ? "LEZÁRT" : "COMPLETED"}</span>`
       : waits.length
       ? `<div class="wait-stack">${waits
           .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
           .join("")}</div>`
-      : '<span class="wait-none">READY</span>';
+      : `<span class="wait-none">${uiLang === "hu" ? "KÉSZ" : "READY"}</span>`;
 
     const tr = document.createElement("tr");
     tr.dataset.id = patient.id;
@@ -431,8 +632,8 @@ function renderPatients() {
   } else {
     document.getElementById("patientForm").classList.add("hidden");
     document.getElementById("noPatientSelected").classList.remove("hidden");
-    document.getElementById("recordTitle").textContent = "Patient detail";
-    document.getElementById("recordSubtitle").textContent = "Chọn một bệnh nhân bên trái.";
+    document.getElementById("recordTitle").textContent = uiLang === "hu" ? "Eset részletei" : "Case detail";
+    document.getElementById("recordSubtitle").textContent = t("selectCasePrompt");
     document.getElementById("patientStatusBadge").innerHTML = "";
   }
 }
@@ -443,17 +644,17 @@ function updateStatusCell(patient) {
   if (!cell) return;
 
   if (isCompleted(patient)) {
-    cell.innerHTML = '<span class="badge done">COMPLETED</span>';
+    cell.innerHTML = `<span class="badge done">${uiLang === "hu" ? "LEZÁRT" : "COMPLETED"}</span>`;
     return;
   }
 
-  const waits = waitingLabels(patient);
+  const waits = workflowBlockers(patient);
 
   cell.innerHTML = waits.length
     ? `<div class="wait-stack">${waits
         .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
         .join("")}</div>`
-    : '<span class="wait-none">READY</span>';
+    : `<span class="wait-none">${uiLang === "hu" ? "KÉSZ" : "READY"}</span>`;
 }
 
 async function addPatient() {
@@ -464,13 +665,17 @@ async function addPatient() {
   const mainComplaint = document.getElementById("newComplaint").value.trim();
 
   if (!sex || !yob || !mainComplaint) {
-    alert("Please enter Sex, Year of birth and Main complaint.");
+    alert(uiLang === "hu"
+      ? "Adja meg a nemet, a születési évet és a fő panaszt."
+      : "Please enter Sex, Year of birth and Main complaint.");
     return;
   }
 
   const currentYear = new Date().getFullYear();
   if (!/^\d{4}$/.test(yob) || Number(yob) < 1900 || Number(yob) > currentYear) {
-    alert("Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
+    alert(uiLang === "hu"
+      ? "A születési év 4 számjegyű legyen, vagy használható 2 számjegyű rövidítés, pl. 55 = 1955."
+      : "Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
     return;
   }
   document.getElementById("newYob").value = yob;
@@ -483,8 +688,11 @@ async function addPatient() {
     yob,
     mainComplaint,
     complaint: "",
+    complaintSkipped: false,
     history: "",
+    historySkipped: false,
     physical: "",
+    physicalSkipped: false,
     tests: {
       labs: [newEntry()],
       ekg: newEntry(),
@@ -494,7 +702,9 @@ async function addPatient() {
     },
     others: "",
     therapy: "",
+    therapySkipped: false,
     course: "",
+    courseSkipped: false,
     diagnoses: "",
     disposition: "",
     recommendations: [""],
@@ -538,12 +748,16 @@ function loadPatientForm() {
   document.getElementById("patientForm").classList.remove("hidden");
   document.getElementById("noPatientSelected").classList.add("hidden");
 
-  document.getElementById("recordTitle").textContent = `Patient ${patient.localId}`;
+  document.getElementById("recordTitle").textContent =
+    `${uiLang === "hu" ? "Eset" : "Case"} ${patient.localId}`;
   document.getElementById("recordSubtitle").textContent =
     `${patient.sex} • ${ageFromYob(patient.yob)} y • ${patient.mainComplaint}`;
 
+  const statusLabel = isCompleted(patient)
+    ? (uiLang === "hu" ? "LEZÁRT" : "COMPLETED / CLOSED")
+    : (uiLang === "hu" ? "AKTÍV / FOLYAMATBAN" : "ACTIVE / IN PROGRESS");
   document.getElementById("patientStatusBadge").innerHTML =
-    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${isCompleted(patient) ? "COMPLETED / CLOSED" : "ACTIVE / IN PROGRESS"}</span>`;
+    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${statusLabel}</span>`;
 
   const values = {
     fMainComplaint: patient.mainComplaint,
@@ -571,7 +785,61 @@ function loadPatientForm() {
   renderAllTests(patient);
   renderRecommendations(patient);
   updateDispositionVisibility();
+  wireNarrativeFields(patient);
+  refreshNarrativeFields(patient);
   renderSummaryStatus(patient);
+  renderCaseEditState(patient);
+}
+
+function renderCaseEditState(patient) {
+  const completed = isCompleted(patient);
+  const form = document.getElementById("patientForm");
+  const reopenButton = document.getElementById("reopenCaseBtn");
+
+  reopenButton.classList.toggle("hidden", !completed);
+  reopenButton.disabled = false;
+  form.classList.toggle("case-readonly", completed);
+
+  form.querySelectorAll("input, textarea, select, button").forEach((control) => {
+    if (completed) {
+      if (!control.disabled) {
+        control.disabled = true;
+        control.dataset.closedDisabled = "true";
+      }
+    } else if (control.dataset.closedDisabled === "true") {
+      control.disabled = false;
+      delete control.dataset.closedDisabled;
+    }
+  });
+}
+
+async function reopenCase() {
+  const patient = patientById(selectedPatientId);
+  if (!patient || !isCompleted(patient) || !state.shift) return;
+
+  const confirmed = confirm(
+    uiLang === "hu"
+      ? "Újranyitja ezt a lezárt esetet? A korábbi véglegesített verzió megmarad az előzményekben."
+      : "Reopen this completed case? The previous finalized revision will remain in history."
+  );
+  if (!confirmed) return;
+
+  const button = document.getElementById("reopenCaseBtn");
+  const oldLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = uiLang === "hu" ? "ÚJRANYITÁS…" : "REOPENING…";
+
+  try {
+    const result = await window.BachSBOBackend.reopenCase(state.shift.id, patient.id);
+    patient.summaryFinalizedAt = null;
+    patient.updatedAt = result?.reopenedAt || nowIso();
+    renderApp();
+    flash(uiLang === "hu" ? "Eset újranyitva." : "Case reopened.");
+  } catch (error) {
+    handleBackendError(error);
+    button.disabled = false;
+    button.textContent = oldLabel;
+  }
 }
 
 function renderAllTests(patient) {
@@ -596,19 +864,25 @@ function renderAllTests(patient) {
 
 function modeDots(entry) {
   const status = entryStatus(entry);
+  const waiting = uiLang === "hu" ? "Eredményre vár" : "Waiting for result";
+  const notOrdered = uiLang === "hu" ? "Nem történt" : "Not ordered";
+  const result = uiLang === "hu" ? "Eredmény rendelkezésre áll" : "Result available";
   return `<div class="mode-dots" data-mode-dots>
-    <button type="button" class="mode-dot-btn waiting ${status === "waiting" ? "active" : ""}" data-mode-choice="waiting" title="Waiting for result" aria-label="Waiting for result"></button>
-    <button type="button" class="mode-dot-btn notordered ${status === "notordered" ? "active" : ""}" data-mode-choice="notordered" title="Not ordered" aria-label="Not ordered"></button>
-    <span class="mode-dot-btn result ${status === "result" ? "active" : ""}" title="Result available" aria-label="Result available"></span>
+    <button type="button" class="mode-dot-btn waiting ${status === "waiting" ? "active" : ""}" data-mode-choice="waiting" title="${waiting}" aria-label="${waiting}"></button>
+    <button type="button" class="mode-dot-btn notordered ${status === "notordered" ? "active" : ""}" data-mode-choice="notordered" title="${notOrdered}" aria-label="${notOrdered}"></button>
+    <span class="mode-dot-btn result ${status === "result" ? "active" : ""}" title="${result}" aria-label="${result}"></span>
   </div>`;
 }
 
 function statusBadge(status) {
+  const result = uiLang === "hu" ? "EREDMÉNY KÉSZ" : "RESULT AVAILABLE";
+  const notOrdered = uiLang === "hu" ? "NEM TÖRTÉNT" : "NOT ORDERED";
+  const waiting = uiLang === "hu" ? "EREDMÉNYRE VÁR" : "WAITING FOR RESULT";
   return `<span class="test-status ${status}">${status === "result"
-    ? "RESULT AVAILABLE"
+    ? result
     : status === "notordered"
-    ? "NOT ORDERED"
-    : "WAITING FOR RESULT"}</span>`;
+    ? notOrdered
+    : waiting}</span>`;
 }
 
 function renderGroupCards(hostId, entries, label, prefix) {
@@ -747,9 +1021,30 @@ function renderRadiologyCards(patient) {
     const status = entryStatus(entry);
     const card = document.createElement("div");
     const bodyParts = ["", "koponya", "mellkas", "has", "mellkas és has", "has és kismedence"];
-    const modalities = ["", "RTG", "ultrahang", "CT", "MR", "other"];
+    const bodyLabels = uiLang === "hu"
+      ? {
+          "": "— válasszon —",
+          "koponya": "Koponya",
+          "mellkas": "Mellkas",
+          "has": "Has",
+          "mellkas és has": "Mellkas és has",
+          "has és kismedence": "Has és kismedence"
+        }
+      : {
+          "": "— select —",
+          "koponya": "Head",
+          "mellkas": "Chest",
+          "has": "Abdomen",
+          "mellkas és has": "Chest + abdomen",
+          "has és kismedence": "Abdomen + pelvis"
+        };
+    const modalities = ["", "RTG", "US", "CT", "Contrast CT", "MR", "other"];
+    const modalityLabels = {
+      "": uiLang === "hu" ? "— válasszon —" : "— select —",
+      "other": uiLang === "hu" ? "Egyéb / specifikus" : "Other / specific"
+    };
     const options = (items, current, labels = {}) => items.map((value) =>
-      `<option value="${attr(value)}"${value === current ? " selected" : ""}>${labels[value] || value || "— select —"}</option>`
+      `<option value="${attr(value)}"${value === current ? " selected" : ""}>${labels[value] || value || "—"}</option>`
     ).join("");
 
     card.className = `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
@@ -763,8 +1058,8 @@ function renderRadiologyCards(patient) {
         </div>
       </div>
       <div class="radiology-grid${entry.modality === "other" ? " has-other" : ""}">
-        <select data-body>${options(bodyParts, entry.bodyPart)}</select>
-        <select data-modality>${options(modalities, entry.modality, {other:"Other / specific"})}</select>
+        <select data-body>${options(bodyParts, entry.bodyPart, bodyLabels)}</select>
+        <select data-modality>${options(modalities, entry.modality, modalityLabels)}</select>
         <input data-other class="${entry.modality === "other" ? "" : "hidden"}" value="${attr(entry.otherTest || "")}" placeholder="Specific test e.g. CT angiographia" />
         <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="Radiology result...">${esc(entry.text || "")}</textarea>
         <button type="button" class="btn small primary test-save" data-save="${key}" ${!entry.text.trim() || entry.mode === "notordered" || status === "result" ? "disabled" : ""}>SAVE RESULT</button>
@@ -840,7 +1135,7 @@ function wireCard(card, entry, key) {
 
       if (nextMode === "notordered" && (entry.text || "").trim()) {
         flash(uiLang === "hu"
-          ? "Törölje az eredményt, mielőtt Not ordered státuszra állítja."
+          ? "Törölje az eredményt, mielőtt „Nem történt” állapotra állítja."
           : "Clear the result before marking this test Not ordered.");
         return;
       }
@@ -881,7 +1176,7 @@ function wireCard(card, entry, key) {
 
     try {
       await persistNow();
-      flash("Result saved.");
+      flash(uiLang === "hu" ? "Eredmény mentve." : "Result saved.");
     } catch (error) {
       handleBackendError(error);
     }
@@ -929,6 +1224,13 @@ function collectForm() {
   patient.others = document.getElementById("fOthers").value;
   patient.therapy = document.getElementById("fTherapy").value;
   patient.course = document.getElementById("fCourse").value;
+
+  if (patient.complaint.trim()) patient.complaintSkipped = false;
+  if (patient.history.trim()) patient.historySkipped = false;
+  if (patient.physical.trim()) patient.physicalSkipped = false;
+  if (patient.therapy.trim()) patient.therapySkipped = false;
+  if (patient.course.trim()) patient.courseSkipped = false;
+
   patient.diagnoses = document.getElementById("fDiagnoses").value;
   patient.disposition = document.getElementById("fDisposition").value;
   patient.hospital = document.getElementById("fHospital").value;
@@ -950,10 +1252,17 @@ async function savePatient() {
   const patient = collectForm();
   if (!patient) return;
 
+  if (isCompleted(patient)) {
+    flash(uiLang === "hu"
+      ? "A lezárt eset szerkesztéséhez előbb nyissa újra."
+      : "Reopen the completed case before editing.");
+    return;
+  }
+
   try {
     await persistNow();
     renderApp();
-    flash("Patient saved.");
+    flash(uiLang === "hu" ? "Eset mentve." : "Case saved.");
   } catch (error) {
     handleBackendError(error);
   }
@@ -1025,7 +1334,7 @@ async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   if (blockers.length) {
     refreshSummaryControls(patient);
     alert(
@@ -1041,7 +1350,7 @@ async function generateSummary() {
   const oldLabel = button.textContent;
   button.dataset.busy = "true";
   button.disabled = true;
-  button.textContent = "GENERATING…";
+  button.textContent = uiLang === "hu" ? "GENERÁLÁS…" : "GENERATING…";
 
   try {
     // Persist first so the AI only sees the de-identified database copy.
@@ -1081,11 +1390,11 @@ async function finalizeSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   if (blockers.length) {
     refreshSummaryControls(patient);
     alert(
-      (uiLang === "hu" ? "A case nem zárható le. Rendezendő: " : "Case cannot be finalized. Resolve: ") +
+      (uiLang === "hu" ? "Az eset nem zárható le. Rendezendő: " : "Case cannot be finalized. Resolve: ") +
       blockers.join(", ")
     );
     return;
@@ -1096,7 +1405,7 @@ async function finalizeSummary() {
   const text = patient.summary.trim();
 
   if (!text) {
-    alert("Summary is empty.");
+    alert(uiLang === "hu" ? "Az összefoglaló üres." : "Summary is empty.");
     return;
   }
 
@@ -1135,9 +1444,13 @@ async function finalizeSummary() {
 
   try {
     await navigator.clipboard.writeText(clipboardText);
-    flash("Summary finalized and copied to clipboard.");
+    flash(uiLang === "hu"
+      ? "Összefoglaló véglegesítve és a vágólapra másolva."
+      : "Summary finalized and copied to clipboard.");
   } catch {
-    flash("Summary finalized. Clipboard unavailable.");
+    flash(uiLang === "hu"
+      ? "Összefoglaló véglegesítve. A vágólap nem érhető el."
+      : "Summary finalized. Clipboard unavailable.");
   }
 
   renderApp();
@@ -1148,17 +1461,24 @@ function renderSummaryStatus(patient) {
   const summaryText = document.getElementById("fSummary").value || "";
 
   if (!patient.summaryFinalizedAt) {
-    summaryStatus.innerHTML =
-      '<span class="badge active">NOT FINALIZED</span><span class="subtle">Patient vẫn IN PROGRESS.</span>';
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? '<span class="badge active">NINCS VÉGLEGESÍTVE</span><span class="subtle">Az eset aktív.</span>'
+      : '<span class="badge active">NOT FINALIZED</span><span class="subtle">Case is active.</span>';
     return;
   }
 
   const changed =
     summaryText.trim() !== patient.summaryFinalizedText.trim();
 
-  summaryStatus.innerHTML = changed
-    ? '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize lại để cập nhật reference.</span>'
-    : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
+  if (changed) {
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? '<span class="badge active">VÉGLEGESÍTÉS UTÁN SZERKESZTVE</span><span class="subtle">Az új verzió mentéséhez véglegesítse ismét.</span>'
+      : '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize again to save a new revision.</span>';
+  } else {
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? `<span class="badge done">VÉGLEGESÍTVE</span><span class="subtle">Mentve: ${fmtTime(patient.summaryFinalizedAt)}</span>`
+      : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
+  }
 }
 
 async function startShift() {
@@ -1177,9 +1497,17 @@ function endShiftStep1() {
   const pts = activeShiftPatients();
   const active = pts.filter((p) => !isCompleted(p)).length;
 
-  modal(`
+  modal(uiLang === "hu" ? `
+    <h3>Lezárja az aktuális műszakot?</h3>
+    <p>Esetek: <b>${pts.length}</b><br>Még aktív / folyamatban: <b>${active}</b></p>
+    <p>Ez lezárja az aktuális munkaterületet.</p>
+    <div class="modal-actions">
+      <button class="btn" data-close>MÉGSE</button>
+      <button class="btn danger" id="endContinue">FOLYTATÁS</button>
+    </div>
+  ` : `
     <h3>End current shift?</h3>
-    <p>Patients: <b>${pts.length}</b><br>Still active / in progress: <b>${active}</b></p>
+    <p>Cases: <b>${pts.length}</b><br>Still active / in progress: <b>${active}</b></p>
     <p>This will close the current workspace.</p>
     <div class="modal-actions">
       <button class="btn" data-close>CANCEL</button>
@@ -1587,6 +1915,7 @@ document.getElementById("addPatientBtn").onclick = addPatient;
   });
 });
 document.getElementById("savePatientBtn").onclick = savePatient;
+document.getElementById("reopenCaseBtn").onclick = reopenCase;
 document.getElementById("fDisposition").onchange = updateDispositionVisibility;
 document.getElementById("addRecBtn").onclick = addRecommendation;
 document.getElementById("addLabBtn").onclick = addLab;
