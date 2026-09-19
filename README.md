@@ -1,49 +1,105 @@
 # BachTranSBO - ER Command Center
 
-Prototype web application for managing an emergency-department shift and producing a finalized case summary.
+Personal emergency-department command center for one active shift at a time, with permanent de-identified case storage and a future doctor-approved AI learning corpus.
 
-## Current prototype
+## Current architecture
 
-The current frontend is a standalone HTML/CSS/JavaScript prototype (index.html). No production backend or live AI integration is implemented yet.
+- Frontend: standalone HTML/CSS/JavaScript served by GitHub Pages.
+- Backend foundation: Supabase Auth + PostgreSQL + Row Level Security.
+- Persistence: shifts, cases, test entries, summaries, and finalized-summary revisions.
+- Authentication: personal email magic-link / OTP.
+- AI: the current **Generate Summary** button still uses deterministic mock generation; live GPT/SBO Documentation Skill integration is the next backend milestone.
 
-### Implemented in the prototype
+See `docs/BACKEND_SETUP.md` for setup.
 
-- One active shift at a time.
-- One-click **Start Shift**.
-- **End Shift** requires two confirmations and typing `END`.
-- Patient IDs reset from `01` for each shift.
-- Patient table: ID, Sex, Age, Main complaint, Status.
-- Patient status column shows only tests currently **Waiting for result**.
-- Manual entry/paste for Complaint and Patient history.
-- Physical examination.
+## Current workflow
+
+- One active shift at a time, enforced in the database.
+- Patient IDs restart from `01` for every shift.
+- Clinical free-text entry for complaint, history, examination, therapy, and course.
 - Test/result workflow:
-  - Lab with up to Lab 1 / Lab 2 / Lab 3.
+  - Lab 1-3.
   - EKG.
-  - AVG by default; switches to VVG when VVG is written in the result.
-  - Radiology with **+ Add Radiology**.
-  - Consultations with **+ Add Consultation** and a consultation type field (e.g. Cardiology, Neurology).
-  - Default test state: **Waiting for result** (orange).
-  - **Not ordered**: grey.
-  - A typed result becomes **Result available** (green) only after **Save Result**.
-- Therapy and clinical course.
-- Final decision/disposition:
-  - Discharged with numbered home recommendations.
-  - Admitted/submitted with hospital, ward/department, accepting physician, and additional note.
-  - Other outcome.
-- Case Summary:
-  - **Generate Summary** placeholder for a future backend Summary Skill.
-  - Editable summary textarea.
-  - **Finalize Summary** saves the final text, copies it to the clipboard when browser permissions allow, and marks the patient completed.
-- Prototype retention cleanup is set to 15 days in local browser storage.
+  - AVG / VVG.
+  - Radiology.
+  - Consultations.
+  - Waiting for result / Result available / Not ordered states.
+- Final disposition.
+- Editable case summary.
+- Finalize Summary:
+  - stores the finalized text,
+  - marks the case completed,
+  - copies it to the clipboard when permitted,
+  - stores an immutable finalized revision for the future AI corpus.
 
-## Planned architecture
+## Permanent case corpus
 
-- Frontend: modular ER command-center UI.
-- Backend: to be implemented separately.
-- AI/Skill logic remains backend-only and must not be exposed in the operational UI.
-- Finalized summaries can be used by a backend reference pipeline to improve writing style and, when explicitly requested, update the Summary Skill.
-- Clinical/patient data must not be retained longer than 15 days.
+Cases are not automatically deleted after 15 days.
 
-## Important
+The intended long-term AI example is:
 
-This repository currently contains a prototype, not a production medical information system. Security, authentication, authorization, audit logging, data-retention enforcement, and institutional/GDPR requirements must be addressed before real patient data is used.
+```text
+de-identified clinical case
+        +
+AI generated draft
+        +
+doctor finalized summary
+```
+
+This allows future retrieval/style learning to compare what the model generated with what the doctor actually approved.
+
+## Privacy model
+
+BachTranSBO does not intentionally model patient name, TAJ, full date of birth, address, phone, or email.
+
+Free-text copied from another system may still accidentally contain identifiers. A dedicated automatic de-identification layer is the next required milestone before this branch should be used as a permanent real-world clinical corpus.
+
+The target behavior is:
+
+```text
+raw free text
+    ↓
+automatic PII detection / de-identification
+    ↓
+permanent case database
+    ↓
+GPT / AI corpus
+```
+
+Raw identifiers must not be stored as a separate lookup table or training dataset.
+
+## Repository layout
+
+```text
+index.html
+styles.css
+app.js
+backend.js
+config.js
+
+supabase/
+  migrations/
+    001_backend_v1.sql
+
+docs/
+  PROJECT_SPEC.md
+  BACKEND_SETUP.md
+```
+
+## Backend setup
+
+1. Create a Supabase project.
+2. Run `supabase/migrations/001_backend_v1.sql`.
+3. Put the project URL and **publishable key** in `config.js`.
+4. Configure the GitHub Pages URL as an Auth redirect URL.
+5. Sign in with your personal email account.
+
+Never place a Supabase secret/service-role key in browser code.
+
+## Next milestones
+
+1. Automatic Hungarian-aware de-identification (TAJ, names, full DOB, phone, email, addresses, EHR identifiers).
+2. Server-side `generate-summary` Edge Function.
+3. SBO Documentation Skill + versioning.
+4. Similar-case retrieval with embeddings/pgvector.
+5. AI learning dashboard and Skill-change suggestions.
