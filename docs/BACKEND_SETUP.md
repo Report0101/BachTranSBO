@@ -10,10 +10,11 @@ Create a Supabase project. An EU region is appropriate if that matches your depl
 
 ## 2. Apply database migrations
 
-Apply both migrations in order:
+Apply all migrations in order:
 
 1. `supabase/migrations/001_backend_v1.sql`
 2. `supabase/migrations/002_privacy_hardening.sql`
+3. `supabase/migrations/003_ai_summary.sql`
 
 The first migration creates:
 
@@ -24,6 +25,8 @@ The first migration creates:
 - `summary_revisions`
 
 The second migration makes the permanent clinical tables browser read-only. Clinical writes are then accepted only through the `clinical-store` Edge Function.
+
+The third migration adds backend-only versioned SBO Documentation Skill and writing-style profile tables.
 
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
@@ -60,6 +63,7 @@ Set:
 ```bash
 supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 supabase secrets set DEID_MODEL=gpt-5.6-luna
+supabase secrets set SUMMARY_MODEL=gpt-5.6-terra
 ```
 
 The function fails closed when the AI privacy pass cannot complete successfully.
@@ -72,6 +76,7 @@ With the Supabase CLI:
 supabase login
 supabase link --project-ref YOUR_PROJECT_ID
 supabase functions deploy clinical-store
+supabase functions deploy generate-summary
 ```
 
 The function source is:
@@ -82,7 +87,13 @@ Shared privacy logic is:
 
 `supabase/functions/_shared/deidentify.ts`
 
-## 7. Privacy tests
+## 7. Configure the active SBO Documentation Skill
+
+Follow `docs/SKILL_SETUP.md` and insert the exact approved Skill text as an active version in `skill_versions`.
+
+`generate-summary` refuses to generate a clinical draft when no active Skill exists.
+
+## 8. Privacy tests
 
 Rule-level tests are in:
 
@@ -98,7 +109,7 @@ They cover:
 - preservation of normal clinical dates,
 - preservation of clinical numeric values.
 
-## 8. Data model
+## 9. Data model
 
 ```text
 User
@@ -121,7 +132,7 @@ original generated draft
 doctor-finalized summary
 ```
 
-## 9. Current milestone
+## 10. Current milestone
 
 Implemented on `backend-v1`:
 
@@ -133,13 +144,16 @@ Implemented on `backend-v1`:
 - privacy-gated Edge Function writes,
 - deterministic PII rules,
 - fail-closed AI person-name scrub,
-- permanent finalized-summary revisions.
+- permanent finalized-summary revisions,
+- versioned backend-only SBO Documentation Skill,
+- optional versioned writing-style profile,
+- live server-side GPT summary generation from de-identified DB state.
 
 Still pending:
 
-1. live SBO Documentation AI generation,
-2. Skill/version tables and active Skill loading,
-3. embeddings + similar-case retrieval,
-4. AI-learning/admin dashboard.
+1. embeddings + similar-case retrieval,
+2. automatic style-profile learning,
+3. AI-learning/admin dashboard,
+4. end-to-end deployment testing with the real Supabase project.
 
 See `docs/PRIVACY.md` for the privacy architecture.
