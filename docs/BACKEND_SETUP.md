@@ -2,17 +2,20 @@
 
 This branch replaces clinical-data `localStorage` persistence with a Supabase backend while keeping the current HTML/CSS/JavaScript UI.
 
+Clinical content is permanently stored only after automatic de-identification.
+
 ## 1. Create a Supabase project
 
-Create a project in the Supabase dashboard. For a Hungary/EU deployment, choose an EU region that fits your requirements.
+Create a Supabase project. An EU region is appropriate if that matches your deployment/privacy requirements.
 
-## 2. Run the migration
+## 2. Apply database migrations
 
-Open the Supabase SQL editor and run:
+Apply both migrations in order:
 
-`supabase/migrations/001_backend_v1.sql`
+1. `supabase/migrations/001_backend_v1.sql`
+2. `supabase/migrations/002_privacy_hardening.sql`
 
-It creates:
+The first migration creates:
 
 - `shifts`
 - `cases`
@@ -20,9 +23,9 @@ It creates:
 - `summaries`
 - `summary_revisions`
 
-The schema keeps cases permanently. No 15-day deletion job is defined.
+The second migration makes the permanent clinical tables browser read-only. Clinical writes are then accepted only through the `clinical-store` Edge Function.
 
-Every table has Row Level Security and ownership policies based on `auth.uid()`.
+Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
 ## 3. Configure browser credentials
 
@@ -36,19 +39,66 @@ window.BACH_SBO_CONFIG = {
 };
 ```
 
-Use the browser-safe **publishable/anon key**, never a `service_role` key.
+Use the browser-safe publishable key. Never put a secret/service-role key in browser code.
 
 ## 4. Configure Auth
 
 The frontend uses Supabase email magic-link / OTP sign-in.
 
-In Supabase Auth settings:
+In Auth settings:
 
-1. enable Email provider,
-2. add the GitHub Pages site URL as an allowed redirect URL,
-3. sign in with the email account you want to use for the personal app.
+1. enable Email,
+2. add the GitHub Pages URL as an allowed redirect URL,
+3. use the personal email account intended for BachTranSBO.
 
-## 5. Data model
+## 5. Configure de-identification secrets
+
+The `clinical-store` function performs deterministic identifier removal and then an AI pass for unlabelled names / missed identifiers.
+
+Set:
+
+```bash
+supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+supabase secrets set DEID_MODEL=gpt-5.6-luna
+```
+
+The function fails closed when the AI privacy pass cannot complete successfully.
+
+## 6. Deploy the Edge Function
+
+With the Supabase CLI:
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_ID
+supabase functions deploy clinical-store
+```
+
+The function source is:
+
+`supabase/functions/clinical-store/index.ts`
+
+Shared privacy logic is:
+
+`supabase/functions/_shared/deidentify.ts`
+
+## 7. Privacy tests
+
+Rule-level tests are in:
+
+`supabase/functions/_shared/deidentify.test.ts`
+
+They cover:
+
+- TAJ,
+- labelled full DOB,
+- phone,
+- email,
+- labelled names,
+- preservation of normal clinical dates,
+- preservation of clinical numeric values.
+
+## 8. Data model
 
 ```text
 User
@@ -59,20 +109,37 @@ User
              └─ Summary revisions
 ```
 
-`summary_revisions` is append-only from the application's point of view and preserves each doctor-approved finalized version. It will later become the AI retrieval/learning corpus.
+Every finalized revision is retained as a doctor-approved AI example.
 
-## 6. Current milestone
+The intended corpus unit is:
 
-This branch implements the persistence/authentication foundation only.
+```text
+de-identified clinical case
+        +
+original generated draft
+        +
+doctor-finalized summary
+```
 
-Next milestones:
+## 9. Current milestone
 
-1. automatic de-identification before permanent storage,
-2. server-side Generate Summary Edge Function,
-3. SBO Documentation Skill/version storage,
-4. embeddings + similar-case retrieval,
-5. AI-learning/admin dashboard.
+Implemented on `backend-v1`:
 
-## Privacy rule
+- Supabase Auth foundation,
+- permanent PostgreSQL case storage,
+- RLS,
+- one active shift per owner,
+- browser read-only clinical tables,
+- privacy-gated Edge Function writes,
+- deterministic PII rules,
+- fail-closed AI person-name scrub,
+- permanent finalized-summary revisions.
 
-BachTranSBO intentionally does not model patient name, TAJ, full date of birth, address, phone, or email. Free-text can still contain accidental identifiers; the planned privacy layer must remove them before permanent storage and before sending text to an external model.
+Still pending:
+
+1. live SBO Documentation AI generation,
+2. Skill/version tables and active Skill loading,
+3. embeddings + similar-case retrieval,
+4. AI-learning/admin dashboard.
+
+See `docs/PRIVACY.md` for the privacy architecture.
