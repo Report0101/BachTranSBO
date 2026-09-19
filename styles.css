@@ -193,3 +193,23 @@ textarea{min-height:92px;resize:vertical}
 
 .admin-card{max-width:680px}
 #adminPasswordMessage{min-height:20px}
+
+
+/* Preview v5 compatible clinical UI */
+.topbar-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lang-toggle{display:inline-flex;border:1px solid #374151;border-radius:9px;overflow:hidden;background:#fff}
+.lang-btn{border:0;background:#fff;padding:7px 10px;font-size:12px;font-weight:800;color:#64748b;cursor:pointer}
+.lang-btn.active{background:var(--accent);color:#fff}
+.mode-dots{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 4px}
+.mode-dot-btn{width:18px;height:18px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:.15s}
+.mode-dot-btn.waiting{background:#f59e0b}
+.mode-dot-btn.notordered{background:#9ca3af}
+.mode-dot-btn.result{background:#22c55e;cursor:default}
+.mode-dot-btn.active{border-color:#fff;box-shadow:0 0 0 2px #334155}
+.mode-dot-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.card-head-actions{display:flex;align-items:center;gap:8px}
+.delete-test{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.radiology-grid{display:grid;grid-template-columns:150px 140px minmax(220px,1fr) 120px;gap:10px;align-items:start}
+.radiology-grid.has-other{grid-template-columns:150px 140px minmax(180px,1fr) minmax(220px,1fr) 120px}
+.diagnoses-note{margin-top:6px}
+@media (max-width:760px){.radiology-grid{grid-template-columns:1fr}.radiology-grid.has-other{grid-template-columns:1fr}}
