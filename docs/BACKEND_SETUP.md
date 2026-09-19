@@ -64,7 +64,9 @@ In Auth settings:
 
 1. enable Email,
 2. add the GitHub Pages URL as an allowed redirect URL,
-3. use the personal email account intended for BachTranSBO.
+3. use the personal email account intended for BachTranSBO,
+4. after the owner account exists, disable public new-user signups for this personal app,
+5. copy the owner's Auth user UUID for the `APP_OWNER_USER_ID` secret.
 
 ## 5. Configure de-identification secrets
 
@@ -80,9 +82,10 @@ supabase secrets set EMBEDDING_MODEL=text-embedding-3-small
 supabase secrets set STYLE_MODEL=gpt-5.6-luna
 supabase secrets set SKILL_ANALYSIS_MODEL=gpt-5.6-luna
 supabase secrets set APP_ORIGIN=https://YOUR_GITHUB_PAGES_OR_CUSTOM_DOMAIN
+supabase secrets set APP_OWNER_USER_ID=YOUR_SUPABASE_AUTH_USER_UUID
 ```
 
-The function fails closed when the AI privacy pass cannot complete successfully.
+The function fails closed when the AI privacy pass cannot complete successfully. All operational Edge Functions also reject authenticated users whose UUID does not equal `APP_OWNER_USER_ID`.
 
 ## 6. Deploy the Edge Function
 
