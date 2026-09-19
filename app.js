@@ -386,15 +386,15 @@ function refreshSummaryControls(patient) {
   const completed = isCompleted(patient);
   const message = completed
     ? (uiLang === "hu"
-      ? "A case lezárt. Az összefoglaló véglegesítve."
+      ? "Az eset lezárt. Az összefoglaló véglegesítve."
       : "Case closed. Summary finalized.")
     : blocked
     ? (uiLang === "hu"
-      ? `Az összefoglaló le van tiltva. Rendezendő: ${blockers.join(", ")}. Adjon meg eredményt, vagy jelölje Not ordered státuszra.`
-      : `Summary locked. Resolve: ${blockers.join(", ")}. Enter a result or mark it Not ordered.`)
+      ? `Az összefoglaló nem készíthető el. Rendezendő: ${blockers.join(", ")}. Töltse ki a mezőt, vagy jelölje NINCS / NEM TÖRTÉNT állapotra.`
+      : `Summary locked. Resolve: ${blockers.join(", ")}. Fill the field, or mark it None / Not ordered.`)
     : (uiLang === "hu"
-      ? "Minden vizsgálat rendezett. Az összefoglaló elkészíthető."
-      : "All tests are resolved. Summary can be generated.");
+      ? "Minden kötelező mező és vizsgálat rendezett. Az összefoglaló elkészíthető."
+      : "All required fields and tests are resolved. Summary can be generated.");
 
   gate.textContent = message;
   gate.className = `summary-gate ${completed || !blocked ? "ready" : "blocked"}`;
@@ -459,7 +459,7 @@ function renderHeader() {
 
   meta.innerHTML = `
     <span class="shift-pill"><span class="dot"></span> ${hu ? "AKTÍV MŰSZAK" : "SHIFT ACTIVE"} • ${hu ? "Kezdés" : "Started"} ${fmtTime(state.shift.startedAt)}</span>
-    <span class="metric">${hu ? "Betegek" : "Patients"} <b>${pts.length}</b></span>
+    <span class="metric">${hu ? "Esetek" : "Cases"} <b>${pts.length}</b></span>
     <span class="metric">${hu ? "Aktív" : "Active"} <b>${active}</b></span>
     <span class="metric">${hu ? "Lezárt" : "Completed"} <b>${completed}</b></span>
   `;
@@ -760,6 +760,57 @@ function loadPatientForm() {
   refreshNarrativeFields(patient);
   renderSummaryStatus(patient);
   renderCaseEditState(patient);
+}
+
+function renderCaseEditState(patient) {
+  const completed = isCompleted(patient);
+  const form = document.getElementById("patientForm");
+  const reopenButton = document.getElementById("reopenCaseBtn");
+
+  reopenButton.classList.toggle("hidden", !completed);
+  reopenButton.disabled = false;
+  form.classList.toggle("case-readonly", completed);
+
+  form.querySelectorAll("input, textarea, select, button").forEach((control) => {
+    if (completed) {
+      if (!control.disabled) {
+        control.disabled = true;
+        control.dataset.closedDisabled = "true";
+      }
+    } else if (control.dataset.closedDisabled === "true") {
+      control.disabled = false;
+      delete control.dataset.closedDisabled;
+    }
+  });
+}
+
+async function reopenCase() {
+  const patient = patientById(selectedPatientId);
+  if (!patient || !isCompleted(patient) || !state.shift) return;
+
+  const confirmed = confirm(
+    uiLang === "hu"
+      ? "Újranyitja ezt a lezárt esetet? A korábbi véglegesített verzió megmarad az előzményekben."
+      : "Reopen this completed case? The previous finalized revision will remain in history."
+  );
+  if (!confirmed) return;
+
+  const button = document.getElementById("reopenCaseBtn");
+  const oldLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = uiLang === "hu" ? "ÚJRANYITÁS…" : "REOPENING…";
+
+  try {
+    const result = await window.BachSBOBackend.reopenCase(state.shift.id, patient.id);
+    patient.summaryFinalizedAt = null;
+    patient.updatedAt = result?.reopenedAt || nowIso();
+    renderApp();
+    flash(uiLang === "hu" ? "Eset újranyitva." : "Case reopened.");
+  } catch (error) {
+    handleBackendError(error);
+    button.disabled = false;
+    button.textContent = oldLabel;
+  }
 }
 
 function renderAllTests(patient) {
@@ -1144,6 +1195,13 @@ function collectForm() {
   patient.others = document.getElementById("fOthers").value;
   patient.therapy = document.getElementById("fTherapy").value;
   patient.course = document.getElementById("fCourse").value;
+
+  if (patient.complaint.trim()) patient.complaintSkipped = false;
+  if (patient.history.trim()) patient.historySkipped = false;
+  if (patient.physical.trim()) patient.physicalSkipped = false;
+  if (patient.therapy.trim()) patient.therapySkipped = false;
+  if (patient.course.trim()) patient.courseSkipped = false;
+
   patient.diagnoses = document.getElementById("fDiagnoses").value;
   patient.disposition = document.getElementById("fDisposition").value;
   patient.hospital = document.getElementById("fHospital").value;
@@ -1165,10 +1223,17 @@ async function savePatient() {
   const patient = collectForm();
   if (!patient) return;
 
+  if (isCompleted(patient)) {
+    flash(uiLang === "hu"
+      ? "A lezárt eset szerkesztéséhez előbb nyissa újra."
+      : "Reopen the completed case before editing.");
+    return;
+  }
+
   try {
     await persistNow();
     renderApp();
-    flash("Patient saved.");
+    flash(uiLang === "hu" ? "Eset mentve." : "Case saved.");
   } catch (error) {
     handleBackendError(error);
   }
@@ -1240,7 +1305,7 @@ async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   if (blockers.length) {
     refreshSummaryControls(patient);
     alert(
@@ -1296,7 +1361,7 @@ async function finalizeSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  const blockers = waitingLabels(patient);
+  const blockers = workflowBlockers(patient);
   if (blockers.length) {
     refreshSummaryControls(patient);
     alert(
