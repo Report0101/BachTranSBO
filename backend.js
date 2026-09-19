@@ -284,8 +284,11 @@
         yob: row.year_of_birth ? String(row.year_of_birth) : "",
         mainComplaint: row.main_complaint || "",
         complaint: row.complaint || "",
+        complaintSkipped: Boolean(row.complaint_skipped),
         history: row.history || "",
+        historySkipped: Boolean(row.history_skipped),
         physical: row.physical_exam || "",
+        physicalSkipped: Boolean(row.physical_exam_skipped),
         diagnoses: row.diagnoses || "",
         tests: {
           labs: labs.length ? labs : [blankEntry()],
@@ -296,7 +299,9 @@
         },
         others: row.others || "",
         therapy: row.therapy || "",
+        therapySkipped: Boolean(row.therapy_skipped),
         course: row.clinical_course || "",
+        courseSkipped: Boolean(row.clinical_course_skipped),
         disposition: row.disposition || "",
         recommendations: Array.isArray(row.recommendations)
           ? row.recommendations
@@ -409,6 +414,20 @@
     );
   }
 
+  async function reopenCase(shiftId, caseId) {
+    if (!shiftId || !caseId) throw new Error("Case reopen payload is incomplete.");
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "reopen_case",
+        shiftId,
+        caseId
+      },
+      "Case reopen"
+    );
+  }
+
   async function appendSummaryRevision(patient) {
     if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
       return { removed: 0, report: null };
@@ -488,6 +507,7 @@
     saveState,
     savePatient,
     finalizePatient,
+    reopenCase,
     appendSummaryRevision,
     generateSummary,
     getLearningOverview,
