@@ -43,6 +43,27 @@ window.BACH_SBO_CONFIG = {
     return String(YEAR - y);
   }
 
+  function yobFromAge(age) {
+    const a = Number(String(age || "").replace(/[^0-9]/g, ""));
+    if (!Number.isInteger(a) || a < 0 || a > 130) return "";
+    return String(YEAR - a);
+  }
+
+  function normalizeYob(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (digits.length === 4) {
+      const y = Number(digits);
+      return Number.isInteger(y) && y >= 1900 && y <= YEAR ? String(y) : "";
+    }
+    if (digits.length === 2 || digits.length === 3) {
+      // Treat short values as age, matching the Add Case helper text "1955 or 55".
+      return yobFromAge(digits);
+    }
+    return "";
+  }
+
   function normalizeSex(value) {
     const raw = String(value || "").trim().toLowerCase();
     if (["f", "female", "woman", "nő", "no", "nőbeteg", "w"].includes(raw)) return "F";
@@ -196,6 +217,44 @@ window.BACH_SBO_CONFIG = {
       host.dataset.pendingCaseId = nextCaseId || "";
       host.dataset.loadedCaseId = "";
     }
+  }
+
+  function getSelectedDisplayDemographics() {
+    const row = selectedRow();
+    const tds = row ? [...row.querySelectorAll("td")] : [];
+    let sex = normalizeSex(tds[1]?.textContent || "");
+    let age = String(tds[2]?.textContent || "").match(/\d+/)?.[0] || "";
+
+    const subtitle = document.getElementById("recordSubtitle")?.textContent || "";
+    const subtitleParts = subtitle.split("•").map((x) => x.trim());
+    if (!sex && subtitleParts[0]) sex = normalizeSex(subtitleParts[0]);
+    if (!age && subtitleParts[1]) age = subtitleParts[1].match(/\d+/)?.[0] || "";
+
+    return { sex, age, yob: yobFromAge(age) };
+  }
+
+  function mirrorSelectedDisplayIntoInline({ force = false } = {}) {
+    if (!ensureUi()) return;
+    const id = selectedId();
+    if (!id || inlineDetailsLoadedFor(id)) return;
+    if (!force && isEditingCaseDetails()) return;
+
+    const { sex, yob } = getSelectedDisplayDemographics();
+    const sexEl = document.getElementById("iceSex");
+    const yobEl = document.getElementById("iceYob");
+    const ageEl = document.getElementById("iceAge");
+
+    if (sex && sexEl && (!sexEl.value || force)) {
+      sexEl.value = sex;
+      paintSexSelect(sexEl);
+    }
+    if (yob && yobEl && (!yobEl.value || force)) {
+      yobEl.value = yob;
+      if (ageEl) ageEl.value = ageFromYob(yob);
+    }
+
+    const host = inlineHost();
+    if (host) host.dataset.pendingCaseId = id;
   }
 
   function dischargeConditionTextFromStored(value) {
@@ -359,6 +418,7 @@ window.BACH_SBO_CONFIG = {
     if (host && host.dataset.pendingCaseId !== id && host.dataset.loadedCaseId !== id) {
       clearInlineDetails(id);
     }
+    mirrorSelectedDisplayIntoInline({ force: false });
     if (!force) {
       if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
       if (Date.now() - lastSaveFailedAt < 3000) return;
@@ -372,6 +432,7 @@ window.BACH_SBO_CONFIG = {
         .maybeSingle();
       if (error) throw error;
       if (!data || selectedId() !== id) {
+        mirrorSelectedDisplayIntoInline({ force: false });
         setTimeout(() => loadSelected({ force: true }), 700);
         return;
       }
@@ -395,6 +456,7 @@ window.BACH_SBO_CONFIG = {
       }
       enhanceSexUi();
     } catch (error) {
+      mirrorSelectedDisplayIntoInline({ force: false });
       console.warn("Inline case load failed", error);
     }
   }
@@ -455,15 +517,33 @@ window.BACH_SBO_CONFIG = {
     if (subtitle) subtitle.textContent = `${sexLabel(sex) || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
   }
 
+  function mirrorPatientIntoInline(patient) {
+    if (!patient || patient.id !== selectedId() || !ensureUi()) return;
+    const sex = normalizeSex(patient.sex);
+    const yob = normalizeYob(patient.yob || patient.year_of_birth || patient.yearOfBirth || "");
+    const sexEl = document.getElementById("iceSex");
+    const yobEl = document.getElementById("iceYob");
+    const ageEl = document.getElementById("iceAge");
+    if (sex && sexEl) {
+      sexEl.value = sex;
+      paintSexSelect(sexEl);
+    }
+    if (yob && yobEl) {
+      yobEl.value = yob;
+      if (ageEl) ageEl.value = ageFromYob(yob);
+    }
+  }
+
   function mergeInlineDetailsIntoPatient(patient) {
     if (!patient) return patient;
     if (patient.sex) patient.sex = normalizeSex(patient.sex) || patient.sex;
-    if (patient.id === selectedId()) repairPatientLocalId(patient);
+    if (patient.yob) patient.yob = normalizeYob(patient.yob) || patient.yob;
+    if (patient.id === selectedId()) {
+      repairPatientLocalId(patient);
+      mirrorPatientIntoInline(patient);
+    }
     mergeDischargeConditionIntoPatient(patient);
 
-    // For newly added cases, app.js already holds sex and YOB from the Add Case form.
-    // Do not overwrite them with an empty or stale inline editor before that editor
-    // has loaded the same case from the database.
     if (patient.id !== selectedId() || !inlineDetailsLoadedFor(patient.id)) {
       return patient;
     }
@@ -490,7 +570,10 @@ window.BACH_SBO_CONFIG = {
   }
 
   function scheduleLoadRetries() {
-    [120, 700, 1500].forEach((ms) => setTimeout(() => loadSelected({ force: true }), ms));
+    [50, 180, 700, 1500].forEach((ms) => setTimeout(() => {
+      mirrorSelectedDisplayIntoInline({ force: false });
+      loadSelected({ force: true });
+    }, ms));
   }
 
   function installBackendPayloadBridge() {
@@ -504,7 +587,7 @@ window.BACH_SBO_CONFIG = {
         if (!validateDischargeCondition(patient)) {
           return Promise.reject(new Error(label("Discharge condition / symptoms is required.", "Otthonába bocsátás esetén kötelező: Milyen állapotban, panasz?")));
         }
-        return originalSavePatient.call(this, shiftId, patient).then((result) => {
+        return Promise.resolve(originalSavePatient.call(this, shiftId, patient)).then((result) => {
           scheduleLoadRetries();
           return result;
         });
@@ -529,7 +612,7 @@ window.BACH_SBO_CONFIG = {
         const patients = Array.isArray(state?.patients) ? state.patients : [];
         const patient = patients.find((item) => item?.id === id);
         mergeInlineDetailsIntoPatient(patient);
-        return originalSaveState.call(this, state).then((result) => {
+        return Promise.resolve(originalSaveState.call(this, state)).then((result) => {
           scheduleLoadRetries();
           return result;
         });
@@ -639,15 +722,36 @@ window.BACH_SBO_CONFIG = {
     setTimeout(() => window.applyLanguage?.("hu"), 900);
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
-      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); installBackendPayloadBridge(); enhanceSexUi(); }, 120);
+      window.__iceRefresh = setTimeout(() => {
+        ensureUi();
+        installBackendPayloadBridge();
+        enhanceSexUi();
+        mirrorSelectedDisplayIntoInline({ force: false });
+        loadSelected();
+      }, 120);
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-    document.addEventListener("click", () => setTimeout(() => { loadSelected({ force: true }); enhanceSexUi(); }, 100), true);
+    document.addEventListener("click", () => setTimeout(() => {
+      mirrorSelectedDisplayIntoInline({ force: false });
+      loadSelected({ force: true });
+      enhanceSexUi();
+    }, 100), true);
     document.addEventListener("change", (event) => {
       if (event.target?.id === "newSex") paintSexSelect(event.target);
       if (event.target?.id === "fDisposition") ensureDischargeConditionUi();
     }, true);
-    setInterval(() => { ensureUi(); installBackendPayloadBridge(); enhanceSexUi(); loadSelected(); }, 1200);
-    setTimeout(() => { loadSelected({ force: true }); installBackendPayloadBridge(); enhanceSexUi(); }, 600);
+    setInterval(() => {
+      ensureUi();
+      installBackendPayloadBridge();
+      enhanceSexUi();
+      mirrorSelectedDisplayIntoInline({ force: false });
+      loadSelected();
+    }, 1200);
+    setTimeout(() => {
+      loadSelected({ force: true });
+      installBackendPayloadBridge();
+      enhanceSexUi();
+      mirrorSelectedDisplayIntoInline({ force: true });
+    }, 600);
   }
 
   if (document.readyState === "loading") {
