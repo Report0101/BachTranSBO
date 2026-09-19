@@ -16,6 +16,7 @@ Apply all migrations in order:
 2. `supabase/migrations/002_privacy_hardening.sql`
 3. `supabase/migrations/003_ai_summary.sql`
 4. `supabase/migrations/004_similar_case_retrieval.sql`
+5. `supabase/migrations/005_style_learning.sql`
 
 The first migration creates:
 
@@ -30,6 +31,8 @@ The second migration makes the permanent clinical tables browser read-only. Clin
 The third migration adds backend-only versioned SBO Documentation Skill and writing-style profile tables.
 
 The fourth migration enables pgvector retrieval and stores a de-identified case snapshot + embedding for every finalized revision.
+
+The fifth migration adds metadata for human-approved writing-style learning candidates.
 
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
@@ -68,6 +71,7 @@ supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 supabase secrets set DEID_MODEL=gpt-5.6-luna
 supabase secrets set SUMMARY_MODEL=gpt-5.6-terra
 supabase secrets set EMBEDDING_MODEL=text-embedding-3-small
+supabase secrets set STYLE_MODEL=gpt-5.6-luna
 ```
 
 The function fails closed when the AI privacy pass cannot complete successfully.
@@ -81,6 +85,7 @@ supabase login
 supabase link --project-ref YOUR_PROJECT_ID
 supabase functions deploy clinical-store
 supabase functions deploy generate-summary
+supabase functions deploy analyze-style
 ```
 
 The function source is:
@@ -153,12 +158,14 @@ Implemented on `backend-v1`:
 - optional versioned writing-style profile,
 - live server-side GPT summary generation from de-identified DB state,
 - finalized-case snapshots + embeddings,
-- similar-case retrieval for few-shot generation.
+- similar-case retrieval for few-shot generation,
+- inactive writing-style candidate generation from Generated → Finalized pairs,
+- explicit style-profile activation only after approval.
 
 Still pending:
 
-1. automatic style-profile learning,
-2. AI-learning/admin dashboard,
+1. AI-learning/admin dashboard,
+2. Skill-improvement suggestion workflow,
 3. end-to-end deployment testing with the real Supabase project.
 
 See `docs/PRIVACY.md` for the privacy architecture.
