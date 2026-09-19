@@ -15,7 +15,7 @@ Use this checklist only after reviewing draft PR #2.
 - [ ] Create/sign in with the single owner account.
 - [ ] Copy the owner's Auth user UUID.
 - [ ] Disable public new-user signup after the owner account exists.
-- [ ] Add the final GitHub Pages/custom-domain URL to allowed Auth redirects.
+- [ ] Add `https://report0101.github.io/BachTranSBO/` to allowed Auth redirects.
 
 ## Function secrets
 
@@ -28,7 +28,7 @@ SUMMARY_MODEL=gpt-5.6-terra
 EMBEDDING_MODEL=text-embedding-3-small
 STYLE_MODEL=gpt-5.6-luna
 SKILL_ANALYSIS_MODEL=gpt-5.6-luna
-APP_ORIGIN=https://YOUR_FINAL_WEB_ORIGIN
+APP_ORIGIN=https://report0101.github.io
 APP_OWNER_USER_ID=YOUR_SUPABASE_AUTH_USER_UUID
 ```
 
@@ -91,3 +91,8 @@ The publishable key is expected to be public; security relies on Auth, grants, R
 - [ ] No raw PII test strings remain in the real database.
 - [ ] No secret key/API key is present in GitHub source.
 - [ ] Draft PR #2 is reviewed.
+
+
+> Auth redirect path and CORS origin are intentionally different:
+> redirect = `https://report0101.github.io/BachTranSBO/`,
+> origin = `https://report0101.github.io`.
