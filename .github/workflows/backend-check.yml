@@ -31,6 +31,7 @@ jobs:
           deno check supabase/functions/_shared/deidentify.ts
           deno check supabase/functions/clinical-store/index.ts
           deno check supabase/functions/generate-summary/index.ts
+          deno check supabase/functions/analyze-style/index.ts
 
       - name: Run privacy regression tests
         run: deno test supabase/functions/_shared/deidentify.test.ts
