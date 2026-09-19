@@ -573,7 +573,7 @@ function renderPatients() {
     });
 
   orderedPatients.forEach((patient) => {
-    const waits = waitingLabels(patient);
+    const waits = workflowBlockers(patient);
     const statusHtml = isCompleted(patient)
       ? '<span class="badge done">COMPLETED</span>'
       : waits.length
@@ -610,8 +610,8 @@ function renderPatients() {
   } else {
     document.getElementById("patientForm").classList.add("hidden");
     document.getElementById("noPatientSelected").classList.remove("hidden");
-    document.getElementById("recordTitle").textContent = "Patient detail";
-    document.getElementById("recordSubtitle").textContent = "Chọn một bệnh nhân bên trái.";
+    document.getElementById("recordTitle").textContent = uiLang === "hu" ? "Eset részletei" : "Case detail";
+    document.getElementById("recordSubtitle").textContent = t("selectCasePrompt");
     document.getElementById("patientStatusBadge").innerHTML = "";
   }
 }
@@ -626,7 +626,7 @@ function updateStatusCell(patient) {
     return;
   }
 
-  const waits = waitingLabels(patient);
+  const waits = workflowBlockers(patient);
 
   cell.innerHTML = waits.length
     ? `<div class="wait-stack">${waits
@@ -662,8 +662,11 @@ async function addPatient() {
     yob,
     mainComplaint,
     complaint: "",
+    complaintSkipped: false,
     history: "",
+    historySkipped: false,
     physical: "",
+    physicalSkipped: false,
     tests: {
       labs: [newEntry()],
       ekg: newEntry(),
@@ -673,7 +676,9 @@ async function addPatient() {
     },
     others: "",
     therapy: "",
+    therapySkipped: false,
     course: "",
+    courseSkipped: false,
     diagnoses: "",
     disposition: "",
     recommendations: [""],
@@ -717,7 +722,8 @@ function loadPatientForm() {
   document.getElementById("patientForm").classList.remove("hidden");
   document.getElementById("noPatientSelected").classList.add("hidden");
 
-  document.getElementById("recordTitle").textContent = `Patient ${patient.localId}`;
+  document.getElementById("recordTitle").textContent =
+    `${uiLang === "hu" ? "Eset" : "Case"} ${patient.localId}`;
   document.getElementById("recordSubtitle").textContent =
     `${patient.sex} • ${ageFromYob(patient.yob)} y • ${patient.mainComplaint}`;
 
@@ -750,7 +756,10 @@ function loadPatientForm() {
   renderAllTests(patient);
   renderRecommendations(patient);
   updateDispositionVisibility();
+  wireNarrativeFields(patient);
+  refreshNarrativeFields(patient);
   renderSummaryStatus(patient);
+  renderCaseEditState(patient);
 }
 
 function renderAllTests(patient) {
