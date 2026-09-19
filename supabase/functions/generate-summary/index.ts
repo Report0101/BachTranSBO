@@ -105,6 +105,59 @@ function casePayload(caseRow: any, tests: any[]) {
   };
 }
 
+async function createEmbedding(input: string) {
+  const model = Deno.env.get("EMBEDDING_MODEL") || "text-embedding-3-small";
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env("OPENAI_API_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Embedding generation failed (${response.status}): ${detail.slice(0, 500)}`,
+    );
+  }
+
+  const payload = await response.json();
+  const embedding = payload?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) {
+    throw new Error("Embedding API returned no vector.");
+  }
+
+  return { embedding, model };
+}
+
+async function similarCases(
+  db: any,
+  ownerId: string,
+  caseId: string,
+  clinicalCase: any,
+) {
+  try {
+    const embedded = await createEmbedding(JSON.stringify(clinicalCase));
+    const { data, error } = await db.rpc("match_finalized_cases", {
+      p_owner_id: ownerId,
+      p_query_embedding: embedded.embedding,
+      p_exclude_case_id: caseId,
+      p_match_count: 4,
+    });
+
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Similar-case retrieval skipped:", error);
+    return [];
+  }
+}
+
 async function callOpenAI(prompt: string) {
   const apiKey = env("OPENAI_API_KEY");
   const model = Deno.env.get("SUMMARY_MODEL") || "gpt-5.6-terra";
@@ -201,6 +254,18 @@ Deno.serve(async (req) => {
     if (styleError) throw styleError;
 
     const clinicalCase = casePayload(caseRow, tests || []);
+    const examples = await similarCases(db, user.id, caseId, clinicalCase);
+
+    const exampleBlock = examples.length
+      ? examples.map((example: any, index: number) => [
+          `--- APPROVED EXAMPLE ${index + 1} ---`,
+          `Similarity: ${Number(example.similarity || 0).toFixed(3)}`,
+          "Clinical input:",
+          JSON.stringify(example.case_snapshot, null, 2),
+          "Doctor-finalized documentation:",
+          String(example.finalized_text || ""),
+        ].join("\n")).join("\n\n")
+      : "(No similar finalized examples available yet.)";
 
     const prompt = [
       "You are generating the final clinical documentation draft for BachTranSBO.",
@@ -215,6 +280,10 @@ Deno.serve(async (req) => {
       "",
       "=== WRITING STYLE PROFILE ===",
       style?.profile_text || "(No active style profile yet.)",
+      "",
+      "=== SIMILAR DOCTOR-APPROVED CASES ===",
+      "Use these only as style/structure examples. Never copy patient-specific facts from them into the current case.",
+      exampleBlock,
       "",
       "=== CURRENT DE-IDENTIFIED CASE ===",
       JSON.stringify(clinicalCase, null, 2),
@@ -245,6 +314,11 @@ Deno.serve(async (req) => {
       model: generated.model,
       skillVersion: String(skill.version),
       styleVersion: style ? String(style.version) : null,
+      similarCasesUsed: examples.map((x: any) => ({
+        caseId: x.case_id,
+        revisionId: x.revision_id,
+        similarity: x.similarity,
+      })),
     });
   } catch (error) {
     console.error(error);
