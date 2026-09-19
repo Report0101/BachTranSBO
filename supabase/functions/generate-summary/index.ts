@@ -100,9 +100,13 @@ function casePayload(caseRow: any, tests: any[]) {
     complaint: caseRow.complaint,
     history: caseRow.history,
     physical_examination: caseRow.physical_exam,
+    diagnoses: caseRow.diagnoses || "",
     tests: tests.map((row) => ({
       category: row.category,
       type: row.subtype || null,
+      body_part: row.body_part || null,
+      modality: row.modality || null,
+      other_test: row.other_test || null,
       sequence: row.sequence,
       status: testStatus(row),
       result:

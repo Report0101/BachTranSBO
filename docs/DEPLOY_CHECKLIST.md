@@ -6,7 +6,7 @@ Use this checklist only after reviewing draft PR #2.
 
 - [ ] Create the personal Supabase project.
 - [ ] Confirm a publishable key and secret key exist.
-- [ ] Apply migrations `001` → `008` in numeric order.
+- [ ] Apply migrations `001` → `010` in numeric order.
 - [ ] Confirm pgvector/Vector extension is enabled by migration `004`.
 
 ## Authentication

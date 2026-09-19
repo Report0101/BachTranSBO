@@ -7,7 +7,7 @@ Personal emergency-department command center for one active shift at a time, wit
 - Frontend: standalone HTML/CSS/JavaScript served by GitHub Pages.
 - Backend foundation: Supabase Auth + PostgreSQL + Row Level Security.
 - Persistence: shifts, cases, test entries, summaries, and finalized-summary revisions.
-- Authentication: personal email magic-link / OTP.
+- Authentication: single-owner Supabase email/password login with in-app password change.
 - Privacy gate: permanent clinical writes go through the `clinical-store` Edge Function.
 - De-identification: deterministic Hungarian-aware rules plus a fail-closed AI person-name/missed-identifier pass.
 - AI summary: **Generate Summary** now calls the server-side `generate-summary` Edge Function, which reads the de-identified case, active SBO Documentation Skill version, optional style profile, and calls GPT.
@@ -23,9 +23,11 @@ See `docs/BACKEND_SETUP.md` for setup.
   - Lab 1-3.
   - EKG.
   - AVG / VVG.
-  - Radiology.
+  - Structured Radiology: body part + modality (RTG / ultrahang / CT / MR / Other).
   - Consultations.
+  - Preview-v5 status dots, Enter-to-save results, and removable extra test cards.
   - Waiting for result / Result available / Not ordered states.
+- Doctor-entered diagnoses (never inferred from test results by the UI).
 - Final disposition.
 - Editable case summary.
 - Finalize Summary:
@@ -91,7 +93,7 @@ docs/
 ## Backend setup
 
 1. Create a Supabase project.
-2. Apply migrations `001_backend_v1.sql` through `007_backend_skill_privacy.sql` in order.
+2. Apply migrations `001_backend_v1.sql` through `010_preview_v5_clinical_fields.sql` in order.
 3. Put the project URL and **publishable key** in `config.js`.
 4. Configure Auth/GitHub Pages redirect, create the owner account, then disable public signup.
 5. Set the model/API secrets plus `APP_ORIGIN` and `APP_OWNER_USER_ID` in Supabase.
