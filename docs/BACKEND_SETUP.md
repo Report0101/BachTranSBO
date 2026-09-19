@@ -18,6 +18,7 @@ Apply all migrations in order:
 4. `supabase/migrations/004_similar_case_retrieval.sql`
 5. `supabase/migrations/005_style_learning.sql`
 6. `supabase/migrations/006_skill_suggestions.sql`
+7. `supabase/migrations/007_backend_skill_privacy.sql`
 
 The first migration creates:
 
@@ -36,6 +37,8 @@ The fourth migration enables pgvector retrieval and stores a de-identified case 
 The fifth migration adds metadata for human-approved writing-style learning candidates.
 
 The sixth migration adds server-managed, human-review-only Skill improvement suggestions.
+
+The seventh migration removes browser access to master Skill instructions; only server-side functions can read them.
 
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
@@ -76,6 +79,7 @@ supabase secrets set SUMMARY_MODEL=gpt-5.6-terra
 supabase secrets set EMBEDDING_MODEL=text-embedding-3-small
 supabase secrets set STYLE_MODEL=gpt-5.6-luna
 supabase secrets set SKILL_ANALYSIS_MODEL=gpt-5.6-luna
+supabase secrets set APP_ORIGIN=https://YOUR_GITHUB_PAGES_OR_CUSTOM_DOMAIN
 ```
 
 The function fails closed when the AI privacy pass cannot complete successfully.
@@ -91,6 +95,7 @@ supabase functions deploy clinical-store
 supabase functions deploy generate-summary
 supabase functions deploy analyze-style
 supabase functions deploy analyze-skill
+supabase functions deploy learning-admin
 ```
 
 The function source is:
@@ -167,7 +172,9 @@ Implemented on `backend-v1`:
 - inactive writing-style candidate generation from Generated → Finalized pairs,
 - explicit style-profile activation only after approval,
 - advisory Skill-improvement suggestions from repeated edits,
-- explicit accept/reject review without automatic Skill mutation.
+- explicit accept/reject review without automatic Skill mutation,
+- backend-only Skill instructions with safe dashboard metadata endpoint,
+- configured-origin CORS support.
 
 Still pending:
 
