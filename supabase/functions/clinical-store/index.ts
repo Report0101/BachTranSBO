@@ -274,6 +274,104 @@ async function saveState(db: any, ownerId: string, inputState: any) {
   return { state, report, removed: reportTotal(report) };
 }
 
+async function savePatient(
+  db: any,
+  ownerId: string,
+  shiftId: string,
+  patientInput: any,
+) {
+  const { patient, report } = await deidentifyPatient(patientInput);
+
+  if (!shiftId || patient?.shiftId !== shiftId) {
+    throw new Error("Patient/shift mismatch.");
+  }
+
+  const { data: shift, error: shiftError } = await db
+    .from("shifts")
+    .select("id")
+    .eq("id", shiftId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (shiftError) throw shiftError;
+  if (!shift) throw new Error("Shift does not belong to authenticated user.");
+
+  const now = new Date().toISOString();
+
+  const { error: caseError } = await db.from("cases").upsert(
+    {
+      id: patient.id,
+      shift_id: shiftId,
+      owner_id: ownerId,
+      local_id: patient.localId,
+      sex: patient.sex || null,
+      year_of_birth: patient.yob ? Number(patient.yob) : null,
+      main_complaint: patient.mainComplaint || "",
+      complaint: patient.complaint || "",
+      history: patient.history || "",
+      physical_exam: patient.physical || "",
+      others: patient.others || "",
+      therapy: patient.therapy || "",
+      clinical_course: patient.course || "",
+      disposition: patient.disposition || "",
+      recommendations: patient.recommendations || [""],
+      hospital: patient.hospital || "",
+      ward: patient.ward || "",
+      accepting_physician: patient.physician || "",
+      admission_note: patient.admissionNote || "",
+      other_outcome: patient.otherOutcome || "",
+      other_details: patient.otherDetails || "",
+      status: patient.summaryFinalizedAt ? "completed" : "active",
+      completed_at: patient.summaryFinalizedAt || null,
+      created_at: patient.createdAt || now,
+      updated_at: patient.updatedAt || now,
+      deidentified_at: now,
+      deidentification_version: "v1",
+    },
+    { onConflict: "id" },
+  );
+
+  if (caseError) throw caseError;
+
+  const testRows = flattenTests(patient, ownerId);
+  if (testRows.length) {
+    const { error: testError } = await db
+      .from("test_entries")
+      .upsert(testRows, { onConflict: "id" });
+    if (testError) throw testError;
+  }
+
+  if (
+    patient.summary ||
+    patient.summaryGeneratedAt ||
+    patient.summaryFinalizedAt ||
+    patient.summaryFinalizedText
+  ) {
+    const { error: summaryError } = await db.from("summaries").upsert(
+      {
+        case_id: patient.id,
+        owner_id: ownerId,
+        generated_text:
+          patient.summaryGeneratedText || patient.summary || "",
+        working_text: patient.summary || "",
+        finalized_text: patient.summaryFinalizedText || "",
+        generated_at: patient.summaryGeneratedAt || null,
+        finalized_at: patient.summaryFinalizedAt || null,
+        updated_at: now,
+      },
+      { onConflict: "case_id" },
+    );
+
+    if (summaryError) throw summaryError;
+  }
+
+  return {
+    patient,
+    report,
+    removed: reportTotal(report),
+  };
+}
+
 async function appendRevision(db: any, ownerId: string, patientInput: any) {
   const { patient, report } = await deidentifyPatient(patientInput);
 
@@ -364,6 +462,12 @@ Deno.serve(async (req) => {
 
     if (body?.action === "save_state") {
       return json(await saveState(db, user.id, body.state));
+    }
+
+    if (body?.action === "save_patient") {
+      return json(
+        await savePatient(db, user.id, String(body.shiftId || ""), body.patient),
+      );
     }
 
     if (body?.action === "append_revision") {
