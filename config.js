@@ -26,6 +26,13 @@ window.BACH_SBO_CONFIG = {
     ["other", "Other", "egyéb"]
   ];
 
+  const SEX_VALUES = ["Female", "Male", "Other"];
+  const SEX_COLORS = {
+    Female: { background: "#fce7f3", border: "#f9a8d4", color: "#9d174d" },
+    Male: { background: "#e0f2fe", border: "#7dd3fc", color: "#075985" },
+    Other: { background: "linear-gradient(90deg,#fee2e2,#fef3c7,#dcfce7,#dbeafe,#f3e8ff)", border: "#c4b5fd", color: "#312e81" }
+  };
+
   const lang = () => document.documentElement.lang === "hu" ? "hu" : "en";
   const label = (en, hu) => lang() === "hu" ? hu : en;
 
@@ -33,6 +40,70 @@ window.BACH_SBO_CONFIG = {
     const y = Number(yob);
     if (!Number.isInteger(y) || y < 1900 || y > YEAR) return "";
     return String(YEAR - y);
+  }
+
+  function normalizeSex(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (["f", "female", "woman", "nő", "no", "w"].includes(raw)) return "Female";
+    if (["m", "male", "man", "férfi", "ferfi"].includes(raw)) return "Male";
+    if (["o", "other", "egyéb", "egyeb", "x", "nonbinary", "non-binary"].includes(raw)) return "Other";
+    return "";
+  }
+
+  function sexStyle(value) {
+    return SEX_COLORS[normalizeSex(value)] || null;
+  }
+
+  function sexBadge(value) {
+    const normalized = normalizeSex(value);
+    if (!normalized) return "";
+    const c = sexStyle(normalized);
+    return `<span data-sex-badge="${normalized}" style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c.border};background:${c.background};color:${c.color};border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap">${normalized}</span>`;
+  }
+
+  function sexOptionsHtml(current) {
+    const normalized = normalizeSex(current);
+    return [""].concat(SEX_VALUES).map((value) => {
+      const selected = value === normalized ? " selected" : "";
+      const text = value || "—";
+      return `<option value="${value}"${selected}>${text}</option>`;
+    }).join("");
+  }
+
+  function paintSexSelect(select) {
+    if (!select) return;
+    const normalized = normalizeSex(select.value);
+    if (select.dataset.sexEnhanced !== "true") {
+      select.dataset.sexEnhanced = "true";
+      select.innerHTML = sexOptionsHtml(normalized);
+      select.addEventListener("change", () => paintSexSelect(select));
+    } else if (select.value !== normalized) {
+      select.value = normalized;
+    }
+    const c = sexStyle(normalized);
+    select.style.borderColor = c?.border || "";
+    select.style.background = c?.background || "";
+    select.style.color = c?.color || "";
+    select.style.fontWeight = normalized ? "700" : "";
+  }
+
+  function enhanceSexUi() {
+    [document.getElementById("iceSex"), document.getElementById("newSex")].forEach((select) => {
+      if (!select) return;
+      const current = normalizeSex(select.value);
+      select.innerHTML = sexOptionsHtml(current);
+      select.value = current;
+      select.dataset.sexEnhanced = "true";
+      paintSexSelect(select);
+    });
+
+    document.querySelectorAll("tr[data-id] td:nth-child(2)").forEach((cell) => {
+      const text = cell.textContent || "";
+      const normalized = normalizeSex(text);
+      if (normalized && !cell.querySelector("[data-sex-badge]")) {
+        cell.innerHTML = sexBadge(normalized);
+      }
+    });
   }
 
   function setStatus(en, hu, isError = false) {
@@ -108,7 +179,7 @@ window.BACH_SBO_CONFIG = {
         <div class="inline3">
           <div class="field">
             <label data-ice-label="sex">Sex</label>
-            <select id="iceSex"><option value="">—</option><option value="M">M</option><option value="F">F</option></select>
+            <select id="iceSex">${sexOptionsHtml("")}</select>
           </div>
           <div class="field">
             <label data-ice-label="yob">Year of birth</label>
@@ -137,6 +208,7 @@ window.BACH_SBO_CONFIG = {
 
     updateLabels();
     wireUi();
+    enhanceSexUi();
     return true;
   }
 
@@ -185,13 +257,16 @@ window.BACH_SBO_CONFIG = {
       if (error) throw error;
       if (!data || selectedId() !== id) return;
 
-      document.getElementById("iceSex").value = data.sex || "";
+      const sex = normalizeSex(data.sex);
+      document.getElementById("iceSex").value = sex;
+      paintSexSelect(document.getElementById("iceSex"));
       document.getElementById("iceYob").value = data.year_of_birth ? String(data.year_of_birth) : "";
       document.getElementById("iceAge").value = ageFromYob(data.year_of_birth);
       document.getElementById("iceArrival").value = data.arrival_mode || "";
       document.getElementById("iceArrivalOther").value = data.arrival_other || "";
       document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (data.arrival_mode || "") !== "other");
       lastLoadedCaseId = id;
+      enhanceSexUi();
     } catch (error) {
       console.warn("Inline case load failed", error);
     }
@@ -204,14 +279,15 @@ window.BACH_SBO_CONFIG = {
     const tds = row.querySelectorAll("td");
     const hasYob = Object.prototype.hasOwnProperty.call(payload, "year_of_birth");
     const displayAge = hasYob ? ageFromYob(payload.year_of_birth) : (document.getElementById("iceAge")?.value || "");
+    const sex = normalizeSex(payload.sex);
 
-    if (tds[1]) tds[1].textContent = payload.sex || "";
+    if (tds[1]) tds[1].innerHTML = sexBadge(sex) || "";
     if (tds[2] && hasYob) tds[2].textContent = displayAge || "";
     if (tds[3]) tds[3].textContent = document.getElementById("fMainComplaint")?.value || tds[3].textContent || "";
 
     const subtitle = document.getElementById("recordSubtitle");
     if (subtitle) {
-      subtitle.textContent = `${payload.sex || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
+      subtitle.textContent = `${sex || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
     }
   }
 
@@ -225,7 +301,7 @@ window.BACH_SBO_CONFIG = {
     document.getElementById("iceAge").value = validYob ? ageFromYob(yobNum) : "";
 
     const payload = {
-      sex: document.getElementById("iceSex")?.value || null,
+      sex: normalizeSex(document.getElementById("iceSex")?.value) || null,
       main_complaint: document.getElementById("fMainComplaint")?.value || "",
       arrival_mode: arrival,
       arrival_other: arrival === "other" ? document.getElementById("iceArrivalOther")?.value || "" : "",
@@ -386,6 +462,7 @@ window.BACH_SBO_CONFIG = {
         const age = document.getElementById("iceAge");
         const arrival = document.getElementById("iceArrival");
         if (id === "iceYob" && age && yob) age.value = ageFromYob(yob.value);
+        if (id === "iceSex") paintSexSelect(el);
         document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (arrival?.value || "") !== "other");
         scheduleSave(id === "iceYob" || id === "fMainComplaint" ? SAVE_DELAY_MS : 100);
       };
@@ -412,12 +489,15 @@ window.BACH_SBO_CONFIG = {
 
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
-      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); installBackendPayloadBridge(); }, 120);
+      window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); installBackendPayloadBridge(); enhanceSexUi(); }, 120);
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
 
-    document.addEventListener("click", () => setTimeout(() => loadSelected({ force: true }), 100), true);
-    setInterval(() => { ensureUi(); installBackendPayloadBridge(); }, 1200);
-    setTimeout(() => { loadSelected({ force: true }); installBackendPayloadBridge(); }, 600);
+    document.addEventListener("click", () => setTimeout(() => { loadSelected({ force: true }); enhanceSexUi(); }, 100), true);
+    document.addEventListener("change", (event) => {
+      if (event.target?.id === "newSex") paintSexSelect(event.target);
+    }, true);
+    setInterval(() => { ensureUi(); installBackendPayloadBridge(); enhanceSexUi(); }, 1200);
+    setTimeout(() => { loadSelected({ force: true }); installBackendPayloadBridge(); enhanceSexUi(); }, 600);
   }
 
   if (document.readyState === "loading") {
