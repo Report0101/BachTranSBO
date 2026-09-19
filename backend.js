@@ -295,12 +295,12 @@
     };
   }
 
-  async function invokeClinicalStore(body) {
+  async function invokeAuthedFunction(name, body, label) {
     const session = await getSession();
     if (!session?.access_token) throw new Error("Not authenticated.");
 
     const { data, error } = await requireClient().functions.invoke(
-      "clinical-store",
+      name,
       {
         body,
         headers: {
@@ -311,7 +311,7 @@
 
     if (error) {
       throw new Error(
-        `Clinical privacy service failed: ${error.message || "Unknown error"}`
+        `${label} failed: ${error.message || "Unknown error"}`
       );
     }
 
@@ -325,10 +325,14 @@
   async function saveState(state) {
     if (!state?.shift) return { removed: 0, report: null };
 
-    return invokeClinicalStore({
-      action: "save_state",
-      state
-    });
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "save_state",
+        state
+      },
+      "Clinical privacy service"
+    );
   }
 
   async function appendSummaryRevision(patient) {
@@ -336,10 +340,24 @@
       return { removed: 0, report: null };
     }
 
-    return invokeClinicalStore({
-      action: "append_revision",
-      patient
-    });
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "append_revision",
+        patient
+      },
+      "Finalized corpus save"
+    );
+  }
+
+  async function generateSummary(caseId) {
+    if (!caseId) throw new Error("Missing case ID.");
+
+    return invokeAuthedFunction(
+      "generate-summary",
+      { caseId },
+      "Summary generation"
+    );
   }
 
   window.BachSBOBackend = {
@@ -353,6 +371,7 @@
     closeShift,
     loadState,
     saveState,
-    appendSummaryRevision
+    appendSummaryRevision,
+    generateSummary
   };
 })();
