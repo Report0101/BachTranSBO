@@ -263,7 +263,7 @@ function addPatient() {
   document.getElementById("newYob").value = "";
   document.getElementById("newComplaint").value = "";
 
-  bootstrap();
+  renderApp();
 }
 
 function loadPatientForm() {
@@ -982,4 +982,4 @@ document.getElementById("fSummary").addEventListener("input", () => {
   if (patient) renderSummaryStatus(patient);
 });
 
-renderApp();
+bootstrap();
