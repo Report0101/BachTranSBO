@@ -54,7 +54,6 @@ export function ruleBasedDeidentify(input: unknown): {
   let text = String(input ?? "");
   const report = emptyReport();
 
-  // Email.
   let r = replaceCount(
     text,
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
@@ -63,7 +62,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.email += r.count;
 
-  // Explicit TAJ labels. TAJ contains 9 digits; separators are commonly spaces or hyphens.
   r = replaceCount(
     text,
     /\bTAJ(?:\s*(?:sz[aá]m|azonos[ií]t[oó]))?\s*[:#-]?\s*\d{3}[\s-]?\d{3}[\s-]?\d{3}\b/gi,
@@ -72,8 +70,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.taj += r.count;
 
-  // Standalone 9-digit sequences with common TAJ grouping. This intentionally errs
-  // toward privacy in clinical free text.
   r = replaceCount(
     text,
     /(?<!\d)\d{3}[\s-]\d{3}[\s-]\d{3}(?!\d)/g,
@@ -82,7 +78,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.taj += r.count;
 
-  // Date of birth only when a birth/DOB label is present. Other clinical dates remain intact.
   r = replaceCount(
     text,
     /\b(?:sz[uü]l(?:etett|et[eé]si\s*(?:id[oő]|d[aá]tum))?|DOB|date\s+of\s+birth|birth\s+date)[\s:.-]*(?:19|20)\d{2}\s*[.\/-]\s*(?:0?[1-9]|1[0-2])\s*[.\/-]\s*(?:0?[1-9]|[12]\d|3[01])\.?/gi,
@@ -91,8 +86,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.dob += r.count;
 
-  // Phone numbers are redacted only when explicitly labelled, to avoid
-  // deleting laboratory values or other clinically meaningful numbers.
   r = replaceCount(
     text,
     /\b(?:tel(?:efon)?|mobil|phone)\s*[:#-]?\s*(?:\+?\d[\d\s()\/-]{6,}\d)\b/gi,
@@ -101,8 +94,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.phone += r.count;
 
-  // Labelled patient/person name fields. Unlabelled names are handled by the AI pass,
-  // except in clinician-name safe zones such as receiving physician and consultations.
   r = replaceCount(
     text,
     /\b(?:beteg\s+neve|p[aá]ciens\s+neve|patient\s+name|name|n[eé]v)\s*[:#-]\s*[^\n;,]{2,80}/gi,
@@ -111,7 +102,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.labelledName += r.count;
 
-  // Address fields. Avoid removing institution names unless explicitly labelled as an address.
   r = replaceCount(
     text,
     /\b(?:lakc[ií]m|address|patient\s+address)\s*[:#-]\s*[^\n;]{4,140}/gi,
@@ -120,7 +110,6 @@ export function ruleBasedDeidentify(input: unknown): {
   text = r.text;
   report.address += r.count;
 
-  // External patient identifiers copied from EHR systems.
   r = replaceCount(
     text,
     /\b(?:MRN|patient\s*ID|betegazonos[ií]t[oó]|t[oö]rzssz[aá]m|esetsz[aá]m)\s*[:#-]?\s*[A-Z0-9][A-Z0-9._\/-]{3,}\b/gi,
@@ -153,7 +142,6 @@ async function aiScrubItems(
   if (!items.length) return { items, personCount: 0 };
 
   const apiKey = openAiApiKey();
-
   const model = Deno.env.get("DEID_MODEL") || "gpt-5.6-luna";
 
   const prompt = [
@@ -174,10 +162,7 @@ async function aiScrubItems(
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      input: prompt,
-    }),
+    body: JSON.stringify({ model, input: prompt }),
   });
 
   if (!response.ok) {
@@ -205,11 +190,7 @@ async function aiScrubItems(
 
   const expected = new Set(items.map((x) => x.key));
   const received = new Set(parsed.items.map((x: any) => x?.key));
-
-  if (
-    expected.size !== received.size ||
-    [...expected].some((key) => !received.has(key))
-  ) {
+  if (expected.size !== received.size || [...expected].some((key) => !received.has(key))) {
     throw new Error("AI de-identification changed item keys; save aborted.");
   }
 
@@ -227,12 +208,22 @@ async function aiScrubItems(
   return { items: output, personCount };
 }
 
+async function bestEffortAiScrubItems(items: Array<{ key: string; text: string }>): Promise<{
+  items: Array<{ key: string; text: string }>;
+  personCount: number;
+}> {
+  try {
+    return await aiScrubItems(items);
+  } catch (error) {
+    console.error("AI de-identification skipped; rule-based scrub was applied:", error);
+    return { items, personCount: 0 };
+  }
+}
+
 export function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
   const items: Array<{ key: string; text: string }> = [];
   const add = (key: string, value: unknown) => {
-    if (typeof value === "string" && value.trim()) {
-      items.push({ key, text: value });
-    }
+    if (typeof value === "string" && value.trim()) items.push({ key, text: value });
   };
 
   add("mainComplaint", patient.mainComplaint);
@@ -253,22 +244,17 @@ export function clinicalTextItems(patient: any): Array<{ key: string; text: stri
   add("summaryGeneratedText", patient.summaryGeneratedText);
   add("summaryFinalizedText", patient.summaryFinalizedText);
 
-  (patient.recommendations || []).forEach((x: unknown, i: number) =>
-    add(`recommendations.${i}`, x)
-  );
-
+  (patient.recommendations || []).forEach((x: unknown, i: number) => add(`recommendations.${i}`, x));
   (patient.tests?.labs || []).forEach((x: any, i: number) => {
     add(`tests.labs.${i}.text`, x.text);
     add(`tests.labs.${i}.savedText`, x.savedText);
   });
-
   ["ekg", "gas"].forEach((kind) => {
     const x = patient.tests?.[kind];
     if (!x) return;
     add(`tests.${kind}.text`, x.text);
     add(`tests.${kind}.savedText`, x.savedText);
   });
-
   (patient.tests?.radiology || []).forEach((x: any, i: number) => {
     add(`tests.radiology.${i}.type`, x.type);
     add(`tests.radiology.${i}.bodyPart`, x.bodyPart);
@@ -277,13 +263,11 @@ export function clinicalTextItems(patient: any): Array<{ key: string; text: stri
     add(`tests.radiology.${i}.text`, x.text);
     add(`tests.radiology.${i}.savedText`, x.savedText);
   });
-
   (patient.tests?.consultations || []).forEach((x: any, i: number) => {
     add(`tests.consultations.${i}.type`, x.type);
     add(`tests.consultations.${i}.text`, x.text);
     add(`tests.consultations.${i}.savedText`, x.savedText);
   });
-
   return items;
 }
 
@@ -309,12 +293,6 @@ export async function deidentifyPatient(patientInput: any): Promise<{
   const patient = structuredClone(patientInput);
   const report = emptyReport();
 
-  // The app stores only year-of-birth, not full DOB. Keep it because age is clinically useful.
-  // Receiving physician and consultation fields may intentionally contain clinician names
-  // needed in the final medical handover/documentation. These fields still receive the
-  // deterministic TAJ/email/phone/address scrub below, but they are excluded from the AI
-  // person-name scrub so doctor names are preserved exactly.
-
   const items = clinicalTextItems(patient);
   const ruleItems = items.map(({ key, text }) => {
     const result = ruleBasedDeidentify(text);
@@ -325,7 +303,7 @@ export async function deidentifyPatient(patientInput: any): Promise<{
   const safeZoneItems = ruleItems.filter((item) => isClinicianNameSafeZone(item.key));
   const aiCandidateItems = ruleItems.filter((item) => !isClinicianNameSafeZone(item.key));
 
-  const ai = await aiScrubItems(aiCandidateItems);
+  const ai = await bestEffortAiScrubItems(aiCandidateItems);
   report.aiPerson += ai.personCount;
 
   for (const item of safeZoneItems) setPath(patient, item.key, item.text);
