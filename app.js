@@ -205,7 +205,11 @@ function refreshSummaryControls(patient) {
   const blockers = waitingLabels(patient);
   const blocked = blockers.length > 0;
   const completed = isCompleted(patient);
-  const message = blocked
+  const message = completed
+    ? (uiLang === "hu"
+      ? "A case lezárt. Az összefoglaló véglegesítve."
+      : "Case closed. Summary finalized.")
+    : blocked
     ? (uiLang === "hu"
       ? `Az összefoglaló le van tiltva. Rendezendő: ${blockers.join(", ")}. Adjon meg eredményt, vagy jelölje Not ordered státuszra.`
       : `Summary locked. Resolve: ${blockers.join(", ")}. Enter a result or mark it Not ordered.`)
@@ -214,7 +218,7 @@ function refreshSummaryControls(patient) {
       : "All tests are resolved. Summary can be generated.");
 
   gate.textContent = message;
-  gate.className = `summary-gate ${blocked ? "blocked" : "ready"}`;
+  gate.className = `summary-gate ${completed || !blocked ? "ready" : "blocked"}`;
 
   if (generate.dataset.busy !== "true") {
     generate.disabled = blocked || completed;
@@ -434,8 +438,14 @@ function renderPatients() {
 }
 
 function updateStatusCell(patient) {
+  if (!patient) return;
   const cell = document.querySelector(`[data-status-cell="${patient.id}"]`);
   if (!cell) return;
+
+  if (isCompleted(patient)) {
+    cell.innerHTML = '<span class="badge done">COMPLETED</span>';
+    return;
+  }
 
   const waits = waitingLabels(patient);
 
@@ -443,7 +453,7 @@ function updateStatusCell(patient) {
     ? `<div class="wait-stack">${waits
         .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
         .join("")}</div>`
-    : '<span class="wait-none">—</span>';
+    : '<span class="wait-none">READY</span>';
 }
 
 async function addPatient() {
@@ -533,7 +543,7 @@ function loadPatientForm() {
     `${patient.sex} • ${ageFromYob(patient.yob)} y • ${patient.mainComplaint}`;
 
   document.getElementById("patientStatusBadge").innerHTML =
-    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${isCompleted(patient) ? "COMPLETED" : "ACTIVE / IN PROGRESS"}</span>`;
+    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${isCompleted(patient) ? "COMPLETED / CLOSED" : "ACTIVE / IN PROGRESS"}</span>`;
 
   const values = {
     fMainComplaint: patient.mainComplaint,
@@ -785,6 +795,7 @@ function renderRadiologyCards(patient) {
         persist();
         renderRadiologyCards(patient);
         updateStatusCell(patient);
+        refreshSummaryControls(patient);
       };
     }
     host.appendChild(card);
