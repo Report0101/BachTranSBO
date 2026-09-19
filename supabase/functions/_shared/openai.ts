@@ -5,9 +5,12 @@ export function normalizeOpenAiApiKey(rawInput: unknown): string {
   }
 
   const cleaned = raw
+    .normalize("NFKC")
     .trim()
-    .replace(/^[\`'"“”‘’]+|[\`'"“”‘’]+$/g, "")
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-")
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+    .replace(/[\u00A0\s]+/g, "")
+    .replace(/^[\`'"“”‘’]+|[\`'"“”‘’]+$/g, "");
 
   // Recover a key that was pasted together with an env-var label, quotes,
   // or other surrounding text. OpenAI API keys use the sk- prefix.
