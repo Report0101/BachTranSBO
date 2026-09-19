@@ -230,7 +230,7 @@ async function aiScrubItems(
   return { items: output, personCount };
 }
 
-function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
+export function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
   const items: Array<{ key: string; text: string }> = [];
   const add = (key: string, value: unknown) => {
     if (typeof value === "string" && value.trim()) {
@@ -245,6 +245,7 @@ function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
   add("others", patient.others);
   add("therapy", patient.therapy);
   add("course", patient.course);
+  add("diagnoses", patient.diagnoses);
   add("hospital", patient.hospital);
   add("ward", patient.ward);
   add("physician", patient.physician);
@@ -273,6 +274,9 @@ function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
 
   (patient.tests?.radiology || []).forEach((x: any, i: number) => {
     add(`tests.radiology.${i}.type`, x.type);
+    add(`tests.radiology.${i}.bodyPart`, x.bodyPart);
+    add(`tests.radiology.${i}.modality`, x.modality);
+    add(`tests.radiology.${i}.otherTest`, x.otherTest);
     add(`tests.radiology.${i}.text`, x.text);
     add(`tests.radiology.${i}.savedText`, x.savedText);
   });
