@@ -274,7 +274,8 @@
         admissionNote: row.admission_note || "",
         otherOutcome: row.other_outcome || "",
         otherDetails: row.other_details || "",
-        summary: summary?.generated_text || summary?.working_text || "",
+        summary: summary?.working_text || summary?.generated_text || "",
+        summaryGeneratedText: summary?.generated_text || "",
         summaryGeneratedAt: summary?.generated_at || null,
         summaryFinalizedText: summary?.finalized_text || "",
         summaryFinalizedAt: summary?.finalized_at || null,
@@ -399,7 +400,7 @@
       .map((p) => ({
         case_id: p.id,
         owner_id: user.id,
-        generated_text: p.summary || "",
+        generated_text: p.summaryGeneratedText || p.summary || "",
         working_text: p.summary || "",
         finalized_text: p.summaryFinalizedText || "",
         generated_at: p.summaryGeneratedAt || null,
@@ -424,7 +425,7 @@
     const { error } = await db.from("summary_revisions").insert({
       case_id: patient.id,
       owner_id: user.id,
-      generated_text: patient.summary || "",
+      generated_text: patient.summaryGeneratedText || patient.summary || "",
       finalized_text: patient.summaryFinalizedText,
       finalized_at: patient.summaryFinalizedAt
     });
