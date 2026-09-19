@@ -17,7 +17,7 @@ const I18N = {
     caseStatusHint:"Status shows unresolved items for each case.",
     selectCasePrompt:"Select a case from the list.", noCaseSelected:"No case selected.",
     reopenCase:"REOPEN CASE", sectionClinical:"1. Clinical", complaint:"Complaint",
-    patientHistory:"Patient history", markNone:"NONE", required:"REQUIRED", complete:"COMPLETE", none:"NONE",
+    patientHistory:"Medical history", markNone:"NONE", required:"REQUIRED", complete:"COMPLETE", none:"NONE",
     sectionTests:"2. Tests and examination",
     testLegend:"Orange = unresolved. Enter a result to turn green, or mark Not ordered to turn grey.",
     physicalExam:"Physical examination — main points / status",
@@ -426,13 +426,13 @@ function waitingLabels(patient) {
 
   patient.tests.radiology.forEach((entry, i) => {
     if (entryStatus(entry) === "waiting") {
-      out.push(radiologyType(entry) || `Radiology ${i + 1}`);
+      out.push(radiologyType(entry) || `${t("radiology")} ${i + 1}`);
     }
   });
 
   patient.tests.consultations.forEach((entry, i) => {
     if (entryStatus(entry) === "waiting") {
-      out.push(entry.type?.trim() || `Consultation ${i + 1}`);
+      out.push(entry.type?.trim() || `${uiLang === "hu" ? "Konzílium" : "Consultation"} ${i + 1}`);
     }
   });
 
@@ -575,12 +575,12 @@ function renderPatients() {
   orderedPatients.forEach((patient) => {
     const waits = workflowBlockers(patient);
     const statusHtml = isCompleted(patient)
-      ? '<span class="badge done">COMPLETED</span>'
+      ? `<span class="badge done">${uiLang === "hu" ? "LEZÁRT" : "COMPLETED"}</span>`
       : waits.length
       ? `<div class="wait-stack">${waits
           .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
           .join("")}</div>`
-      : '<span class="wait-none">READY</span>';
+      : `<span class="wait-none">${uiLang === "hu" ? "KÉSZ" : "READY"}</span>`;
 
     const tr = document.createElement("tr");
     tr.dataset.id = patient.id;
@@ -622,7 +622,7 @@ function updateStatusCell(patient) {
   if (!cell) return;
 
   if (isCompleted(patient)) {
-    cell.innerHTML = '<span class="badge done">COMPLETED</span>';
+    cell.innerHTML = `<span class="badge done">${uiLang === "hu" ? "LEZÁRT" : "COMPLETED"}</span>`;
     return;
   }
 
@@ -632,7 +632,7 @@ function updateStatusCell(patient) {
     ? `<div class="wait-stack">${waits
         .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
         .join("")}</div>`
-    : '<span class="wait-none">READY</span>';
+    : `<span class="wait-none">${uiLang === "hu" ? "KÉSZ" : "READY"}</span>`;
 }
 
 async function addPatient() {
@@ -731,8 +731,11 @@ function loadPatientForm() {
   document.getElementById("recordSubtitle").textContent =
     `${patient.sex} • ${ageFromYob(patient.yob)} y • ${patient.mainComplaint}`;
 
+  const statusLabel = isCompleted(patient)
+    ? (uiLang === "hu" ? "LEZÁRT" : "COMPLETED / CLOSED")
+    : (uiLang === "hu" ? "AKTÍV / FOLYAMATBAN" : "ACTIVE / IN PROGRESS");
   document.getElementById("patientStatusBadge").innerHTML =
-    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${isCompleted(patient) ? "COMPLETED / CLOSED" : "ACTIVE / IN PROGRESS"}</span>`;
+    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${statusLabel}</span>`;
 
   const values = {
     fMainComplaint: patient.mainComplaint,
@@ -1472,9 +1475,17 @@ function endShiftStep1() {
   const pts = activeShiftPatients();
   const active = pts.filter((p) => !isCompleted(p)).length;
 
-  modal(`
+  modal(uiLang === "hu" ? `
+    <h3>Lezárja az aktuális műszakot?</h3>
+    <p>Esetek: <b>${pts.length}</b><br>Még aktív / folyamatban: <b>${active}</b></p>
+    <p>Ez lezárja az aktuális munkaterületet.</p>
+    <div class="modal-actions">
+      <button class="btn" data-close>MÉGSE</button>
+      <button class="btn danger" id="endContinue">FOLYTATÁS</button>
+    </div>
+  ` : `
     <h3>End current shift?</h3>
-    <p>Patients: <b>${pts.length}</b><br>Still active / in progress: <b>${active}</b></p>
+    <p>Cases: <b>${pts.length}</b><br>Still active / in progress: <b>${active}</b></p>
     <p>This will close the current workspace.</p>
     <div class="modal-actions">
       <button class="btn" data-close>CANCEL</button>
