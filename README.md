@@ -91,17 +91,16 @@ docs/
 ## Backend setup
 
 1. Create a Supabase project.
-2. Apply migrations `001_backend_v1.sql` through `005_style_learning.sql` in order.
+2. Apply migrations `001_backend_v1.sql` through `006_skill_suggestions.sql` in order.
 3. Put the project URL and **publishable key** in `config.js`.
 4. Configure Auth and the GitHub Pages redirect URL.
-5. Set `OPENAI_API_KEY`, `DEID_MODEL`, `SUMMARY_MODEL`, `EMBEDDING_MODEL`, and `STYLE_MODEL` as Supabase secrets.
-6. Deploy `clinical-store`, `generate-summary`, and `analyze-style`.
+5. Set `OPENAI_API_KEY`, `DEID_MODEL`, `SUMMARY_MODEL`, `EMBEDDING_MODEL`, `STYLE_MODEL`, and `SKILL_ANALYSIS_MODEL` as Supabase secrets.
+6. Deploy `clinical-store`, `generate-summary`, `analyze-style`, and `analyze-skill`.
 7. Insert the exact approved SBO Documentation Skill text as active Skill version 1.
 
 Never place a Supabase secret/service-role key in browser code.
 
 ## Next milestones
 
-1. AI learning dashboard for reviewing/activating style candidates.
-2. Skill-improvement suggestions that never auto-edit the master Skill.
-3. End-to-end deployment/testing against the real Supabase project.
+1. AI learning dashboard for reviewing/activating style candidates and Skill suggestions.
+2. End-to-end deployment/testing against the real Supabase project.
