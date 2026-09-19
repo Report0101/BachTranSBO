@@ -784,19 +784,25 @@ function renderAllTests(patient) {
 
 function modeDots(entry) {
   const status = entryStatus(entry);
+  const waiting = uiLang === "hu" ? "Eredményre vár" : "Waiting for result";
+  const notOrdered = uiLang === "hu" ? "Nem történt" : "Not ordered";
+  const result = uiLang === "hu" ? "Eredmény rendelkezésre áll" : "Result available";
   return `<div class="mode-dots" data-mode-dots>
-    <button type="button" class="mode-dot-btn waiting ${status === "waiting" ? "active" : ""}" data-mode-choice="waiting" title="Waiting for result" aria-label="Waiting for result"></button>
-    <button type="button" class="mode-dot-btn notordered ${status === "notordered" ? "active" : ""}" data-mode-choice="notordered" title="Not ordered" aria-label="Not ordered"></button>
-    <span class="mode-dot-btn result ${status === "result" ? "active" : ""}" title="Result available" aria-label="Result available"></span>
+    <button type="button" class="mode-dot-btn waiting ${status === "waiting" ? "active" : ""}" data-mode-choice="waiting" title="${waiting}" aria-label="${waiting}"></button>
+    <button type="button" class="mode-dot-btn notordered ${status === "notordered" ? "active" : ""}" data-mode-choice="notordered" title="${notOrdered}" aria-label="${notOrdered}"></button>
+    <span class="mode-dot-btn result ${status === "result" ? "active" : ""}" title="${result}" aria-label="${result}"></span>
   </div>`;
 }
 
 function statusBadge(status) {
+  const result = uiLang === "hu" ? "EREDMÉNY KÉSZ" : "RESULT AVAILABLE";
+  const notOrdered = uiLang === "hu" ? "NEM TÖRTÉNT" : "NOT ORDERED";
+  const waiting = uiLang === "hu" ? "EREDMÉNYRE VÁR" : "WAITING FOR RESULT";
   return `<span class="test-status ${status}">${status === "result"
-    ? "RESULT AVAILABLE"
+    ? result
     : status === "notordered"
-    ? "NOT ORDERED"
-    : "WAITING FOR RESULT"}</span>`;
+    ? notOrdered
+    : waiting}</span>`;
 }
 
 function renderGroupCards(hostId, entries, label, prefix) {
@@ -935,9 +941,30 @@ function renderRadiologyCards(patient) {
     const status = entryStatus(entry);
     const card = document.createElement("div");
     const bodyParts = ["", "koponya", "mellkas", "has", "mellkas és has", "has és kismedence"];
-    const modalities = ["", "RTG", "ultrahang", "CT", "MR", "other"];
+    const bodyLabels = uiLang === "hu"
+      ? {
+          "": "— válasszon —",
+          "koponya": "Koponya",
+          "mellkas": "Mellkas",
+          "has": "Has",
+          "mellkas és has": "Mellkas és has",
+          "has és kismedence": "Has és kismedence"
+        }
+      : {
+          "": "— select —",
+          "koponya": "Head",
+          "mellkas": "Chest",
+          "has": "Abdomen",
+          "mellkas és has": "Chest + abdomen",
+          "has és kismedence": "Abdomen + pelvis"
+        };
+    const modalities = ["", "RTG", "US", "CT", "Contrast CT", "MR", "other"];
+    const modalityLabels = {
+      "": uiLang === "hu" ? "— válasszon —" : "— select —",
+      "other": uiLang === "hu" ? "Egyéb / specifikus" : "Other / specific"
+    };
     const options = (items, current, labels = {}) => items.map((value) =>
-      `<option value="${attr(value)}"${value === current ? " selected" : ""}>${labels[value] || value || "— select —"}</option>`
+      `<option value="${attr(value)}"${value === current ? " selected" : ""}>${labels[value] || value || "—"}</option>`
     ).join("");
 
     card.className = `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
@@ -951,8 +978,8 @@ function renderRadiologyCards(patient) {
         </div>
       </div>
       <div class="radiology-grid${entry.modality === "other" ? " has-other" : ""}">
-        <select data-body>${options(bodyParts, entry.bodyPart)}</select>
-        <select data-modality>${options(modalities, entry.modality, {other:"Other / specific"})}</select>
+        <select data-body>${options(bodyParts, entry.bodyPart, bodyLabels)}</select>
+        <select data-modality>${options(modalities, entry.modality, modalityLabels)}</select>
         <input data-other class="${entry.modality === "other" ? "" : "hidden"}" value="${attr(entry.otherTest || "")}" placeholder="Specific test e.g. CT angiographia" />
         <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="Radiology result...">${esc(entry.text || "")}</textarea>
         <button type="button" class="btn small primary test-save" data-save="${key}" ${!entry.text.trim() || entry.mode === "notordered" || status === "result" ? "disabled" : ""}>SAVE RESULT</button>
