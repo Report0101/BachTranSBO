@@ -643,13 +643,17 @@ async function addPatient() {
   const mainComplaint = document.getElementById("newComplaint").value.trim();
 
   if (!sex || !yob || !mainComplaint) {
-    alert("Please enter Sex, Year of birth and Main complaint.");
+    alert(uiLang === "hu"
+      ? "Adja meg a nemet, a születési évet és a fő panaszt."
+      : "Please enter Sex, Year of birth and Main complaint.");
     return;
   }
 
   const currentYear = new Date().getFullYear();
   if (!/^\d{4}$/.test(yob) || Number(yob) < 1900 || Number(yob) > currentYear) {
-    alert("Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
+    alert(uiLang === "hu"
+      ? "A születési év 4 számjegyű legyen, vagy használható 2 számjegyű rövidítés, pl. 55 = 1955."
+      : "Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
     return;
   }
   document.getElementById("newYob").value = yob;
@@ -1106,7 +1110,7 @@ function wireCard(card, entry, key) {
 
       if (nextMode === "notordered" && (entry.text || "").trim()) {
         flash(uiLang === "hu"
-          ? "Törölje az eredményt, mielőtt Not ordered státuszra állítja."
+          ? "Törölje az eredményt, mielőtt „Nem történt” állapotra állítja."
           : "Clear the result before marking this test Not ordered.");
         return;
       }
@@ -1147,7 +1151,7 @@ function wireCard(card, entry, key) {
 
     try {
       await persistNow();
-      flash("Result saved.");
+      flash(uiLang === "hu" ? "Eredmény mentve." : "Result saved.");
     } catch (error) {
       handleBackendError(error);
     }
@@ -1321,7 +1325,7 @@ async function generateSummary() {
   const oldLabel = button.textContent;
   button.dataset.busy = "true";
   button.disabled = true;
-  button.textContent = "GENERATING…";
+  button.textContent = uiLang === "hu" ? "GENERÁLÁS…" : "GENERATING…";
 
   try {
     // Persist first so the AI only sees the de-identified database copy.
@@ -1365,7 +1369,7 @@ async function finalizeSummary() {
   if (blockers.length) {
     refreshSummaryControls(patient);
     alert(
-      (uiLang === "hu" ? "A case nem zárható le. Rendezendő: " : "Case cannot be finalized. Resolve: ") +
+      (uiLang === "hu" ? "Az eset nem zárható le. Rendezendő: " : "Case cannot be finalized. Resolve: ") +
       blockers.join(", ")
     );
     return;
@@ -1376,7 +1380,7 @@ async function finalizeSummary() {
   const text = patient.summary.trim();
 
   if (!text) {
-    alert("Summary is empty.");
+    alert(uiLang === "hu" ? "Az összefoglaló üres." : "Summary is empty.");
     return;
   }
 
@@ -1415,9 +1419,13 @@ async function finalizeSummary() {
 
   try {
     await navigator.clipboard.writeText(clipboardText);
-    flash("Summary finalized and copied to clipboard.");
+    flash(uiLang === "hu"
+      ? "Összefoglaló véglegesítve és a vágólapra másolva."
+      : "Summary finalized and copied to clipboard.");
   } catch {
-    flash("Summary finalized. Clipboard unavailable.");
+    flash(uiLang === "hu"
+      ? "Összefoglaló véglegesítve. A vágólap nem érhető el."
+      : "Summary finalized. Clipboard unavailable.");
   }
 
   renderApp();
@@ -1428,17 +1436,24 @@ function renderSummaryStatus(patient) {
   const summaryText = document.getElementById("fSummary").value || "";
 
   if (!patient.summaryFinalizedAt) {
-    summaryStatus.innerHTML =
-      '<span class="badge active">NOT FINALIZED</span><span class="subtle">Patient vẫn IN PROGRESS.</span>';
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? '<span class="badge active">NINCS VÉGLEGESÍTVE</span><span class="subtle">Az eset aktív.</span>'
+      : '<span class="badge active">NOT FINALIZED</span><span class="subtle">Case is active.</span>';
     return;
   }
 
   const changed =
     summaryText.trim() !== patient.summaryFinalizedText.trim();
 
-  summaryStatus.innerHTML = changed
-    ? '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize lại để cập nhật reference.</span>'
-    : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
+  if (changed) {
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? '<span class="badge active">VÉGLEGESÍTÉS UTÁN SZERKESZTVE</span><span class="subtle">Az új verzió mentéséhez véglegesítse ismét.</span>'
+      : '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize again to save a new revision.</span>';
+  } else {
+    summaryStatus.innerHTML = uiLang === "hu"
+      ? `<span class="badge done">VÉGLEGESÍTVE</span><span class="subtle">Mentve: ${fmtTime(patient.summaryFinalizedAt)}</span>`
+      : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
+  }
 }
 
 async function startShift() {
@@ -1867,6 +1882,7 @@ document.getElementById("addPatientBtn").onclick = addPatient;
   });
 });
 document.getElementById("savePatientBtn").onclick = savePatient;
+document.getElementById("reopenCaseBtn").onclick = reopenCase;
 document.getElementById("fDisposition").onchange = updateDispositionVisibility;
 document.getElementById("addRecBtn").onclick = addRecommendation;
 document.getElementById("addLabBtn").onclick = addLab;
