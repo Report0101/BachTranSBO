@@ -1,0 +1,14 @@
+[functions.clinical-store]
+verify_jwt = true
+
+[functions.generate-summary]
+verify_jwt = true
+
+[functions.analyze-style]
+verify_jwt = true
+
+[functions.analyze-skill]
+verify_jwt = true
+
+[functions.learning-admin]
+verify_jwt = true
