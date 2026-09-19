@@ -19,6 +19,7 @@ Apply all migrations in order:
 5. `supabase/migrations/005_style_learning.sql`
 6. `supabase/migrations/006_skill_suggestions.sql`
 7. `supabase/migrations/007_backend_skill_privacy.sql`
+8. `supabase/migrations/008_backend_service_grants.sql`
 
 The first migration creates:
 
@@ -39,6 +40,8 @@ The fifth migration adds metadata for human-approved writing-style learning cand
 The sixth migration adds server-managed, human-review-only Skill improvement suggestions.
 
 The seventh migration removes browser access to master Skill instructions; only server-side functions can read them.
+
+The eighth migration makes the backend secret-key/service-role table grants explicit.
 
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
@@ -185,3 +188,17 @@ Still pending:
 2. end-to-end deployment testing with the real Supabase project.
 
 See `docs/PRIVACY.md` for the privacy architecture.
+
+
+## GitHub Pages artifact
+
+The Pages workflow stages only the frontend runtime files:
+
+- `index.html`
+- `styles.css`
+- `app.js`
+- `backend.js`
+- `config.js`
+- `.nojekyll`
+
+Supabase migrations, Edge Function source, and project docs are not placed in the public Pages artifact.
