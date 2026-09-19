@@ -1,6 +1,14 @@
 .DS_Store
 Thumbs.db
 *.log
+public/
 .env
 .env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.sqlite3*
+credentials*.json
+secrets/
 node_modules/

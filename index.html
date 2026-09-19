@@ -1,274 +1,125 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ER Command Center</title>
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https: http://127.0.0.1:* http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BachTranSBO — ER Command Center</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <div class="brand">ER COMMAND CENTER</div>
-      <div class="shift-meta" id="shiftMeta"></div>
+<header class="topbar">
+  <div><div class="brand">ER COMMAND CENTER</div><div class="shift-meta" id="shiftMeta"></div></div>
+  <div class="toolbar" style="gap:8px;align-items:center">
+    <div class="lang-toggle" role="group" aria-label="Language">
+      <button class="lang-btn active" id="langEnBtn" type="button">EN</button>
+      <button class="lang-btn" id="langHuBtn" type="button">HU</button>
     </div>
-    <div class="toolbar" id="topActions"></div>
-  </header>
-
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="nav-title">Workspace</div>
-      <button class="nav-item active">Patients <span>●</span></button>
-      <div class="nav-title">Future modules</div>
-      <button class="nav-item disabled">Analytics <span>PLANNED</span></button>
-      <button class="nav-item disabled">Archive <span>PLANNED</span></button>
-      <button class="nav-item disabled">Integrations <span>PLANNED</span></button>
-    </aside>
-
-    <main class="main">
-      <section id="noShiftView" class="empty hidden">
-        <div class="empty-card">
-          <h1>No active shift</h1>
-          <p>Mỗi thời điểm chỉ có một shift active.</p>
-          <button class="btn primary" id="startShiftBtn">START SHIFT</button>
-        </div>
-      </section>
-
-      <section id="patientsView" class="hidden">
-        <div class="grid2">
-          <div>
-            <div class="card">
-              <div class="card-h">
-                <div>
-                  <h3>Import new patient</h3>
-                  <div class="subtle">ID auto từ 01 trong mỗi shift.</div>
-                </div>
-              </div>
-              <div class="card-b">
-                <div class="inline3">
-                  <div class="field">
-                    <label>ID</label>
-                    <input id="newId" disabled />
-                  </div>
-                  <div class="field">
-                    <label>Sex</label>
-                    <select id="newSex">
-                      <option value="">—</option>
-                      <option>M</option>
-                      <option>F</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Year of birth</label>
-                    <input id="newYob" inputmode="numeric" placeholder="1959" />
-                  </div>
-                </div>
-                <div class="field">
-                  <label>Main complaint</label>
-                  <input id="newComplaint" placeholder="Chest pain" />
-                </div>
-                <button class="btn primary" id="addPatientBtn">ADD PATIENT</button>
-              </div>
-            </div>
-
-            <div class="card mt16">
-              <div class="card-h">
-                <div>
-                  <h3>Patient record</h3>
-                  <div class="subtle">Status chỉ hiển thị các test đang WAITING FOR RESULT.</div>
-                </div>
-              </div>
-              <div class="card-b table-wrap">
-                <table class="patient-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Sex</th>
-                      <th>Age</th>
-                      <th>Main complaint</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody id="patientTbody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-h">
-              <div>
-                <h3 id="recordTitle">Patient detail</h3>
-                <div class="subtle" id="recordSubtitle">Chọn một bệnh nhân bên trái.</div>
-              </div>
-              <span id="patientStatusBadge"></span>
-            </div>
-            <div class="card-b">
-              <div id="noPatientSelected" class="subtle">No patient selected.</div>
-
-              <form id="patientForm" class="hidden" onsubmit="return false">
-                <div class="section">
-                  <div class="section-title">1. Clinical</div>
-                  <div class="field">
-                    <label>Main complaint</label>
-                    <input id="fMainComplaint" />
-                  </div>
-                  <div class="field">
-                    <label>Complaint</label>
-                    <textarea id="fComplaint" placeholder="Manual input or paste from clipboard..."></textarea>
-                  </div>
-                  <div class="field">
-                    <label>Patient history</label>
-                    <textarea id="fHistory" placeholder="Manual input or paste from clipboard..."></textarea>
-                  </div>
-                </div>
-
-                <div class="section">
-                  <div class="section-title">2. Test results and status</div>
-                  <div class="info-bar">
-                    Default = <b>Waiting for result</b> (orange). Nhập kết quả rồi bấm
-                    <b>SAVE RESULT</b> → chuyển xanh <b>Result available</b>.
-                    Chọn <b>Not ordered</b> → grey.
-                  </div>
-
-                  <div class="field">
-                    <label>Physical examination — main points / status</label>
-                    <textarea id="fPhysical"></textarea>
-                  </div>
-
-                  <div class="test-group-toolbar">
-                    <div class="test-group-title">Lab</div>
-                    <button class="btn small" type="button" id="addLabBtn">+ ADD LAB</button>
-                  </div>
-                  <div id="labCards"></div>
-
-                  <div class="test-group-toolbar">
-                    <div class="test-group-title">EKG</div>
-                  </div>
-                  <div id="ekgCard"></div>
-
-                  <div class="test-group-toolbar">
-                    <div class="test-group-title">AVG / VVG</div>
-                  </div>
-                  <div id="gasCard"></div>
-
-                  <div class="test-group-toolbar">
-                    <div class="test-group-title">Radiology</div>
-                    <button class="btn small" type="button" id="addRadiologyBtn">+ ADD RADIOLOGY</button>
-                  </div>
-                  <div id="radiologyCards"></div>
-
-                  <div class="test-group-toolbar">
-                    <div class="test-group-title">Consultations</div>
-                    <button class="btn small" type="button" id="addConsultBtn">+ ADD CONSULTATION</button>
-                  </div>
-                  <div id="consultCards"></div>
-
-                  <div class="field">
-                    <label>Others</label>
-                    <textarea id="fOthers"></textarea>
-                  </div>
-                </div>
-
-                <div class="section">
-                  <div class="section-title">3. What happens</div>
-                  <div class="field">
-                    <label>Therapy</label>
-                    <textarea id="fTherapy"></textarea>
-                  </div>
-                  <div class="field">
-                    <label>Clinical course / patient status change</label>
-                    <textarea id="fCourse"></textarea>
-                  </div>
-                </div>
-
-                <div class="section">
-                  <div class="section-title">4. Final decision / disposition</div>
-                  <div class="info-bar">
-                    Final chỉ là quyết định xử trí. Patient chưa completed cho đến khi Summary được Finalize.
-                  </div>
-                  <div class="field">
-                    <label>Disposition</label>
-                    <select id="fDisposition">
-                      <option value="">Active / in progress</option>
-                      <option value="discharged">Discharged</option>
-                      <option value="admitted">Admitted / submitted</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div id="dischargedFields" class="hidden">
-                    <div class="field">
-                      <label>Recommendation and plan at home</label>
-                      <div class="recs" id="recList"></div>
-                      <button class="btn small" id="addRecBtn" type="button">+ Add recommendation</button>
-                    </div>
-                  </div>
-
-                  <div id="admittedFields" class="hidden">
-                    <div class="inline">
-                      <div class="field">
-                        <label>Hospital</label>
-                        <input id="fHospital" />
-                      </div>
-                      <div class="field">
-                        <label>Ward / department</label>
-                        <input id="fWard" />
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label>Accepting physician</label>
-                      <input id="fPhysician" />
-                    </div>
-                    <div class="field">
-                      <label>Additional note</label>
-                      <textarea id="fAdmissionNote"></textarea>
-                    </div>
-                  </div>
-
-                  <div id="otherFields" class="hidden">
-                    <div class="field">
-                      <label>Outcome</label>
-                      <input id="fOtherOutcome" placeholder="Death, transfer, left against medical advice..." />
-                    </div>
-                    <div class="field">
-                      <label>Details</label>
-                      <textarea id="fOtherDetails"></textarea>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="section">
-                  <div class="section-title">5. Case summary</div>
-                  <div class="info-bar">
-                    <b>Generate Summary</b> sẽ dùng Summary Skill ở backend (cài sau).
-                    User có thể chỉnh sửa trước khi Finalize.
-                  </div>
-                  <div class="summary-actions">
-                    <button class="btn primary" id="generateSummaryBtn" type="button">✨ GENERATE SUMMARY</button>
-                  </div>
-                  <div class="summary-status" id="summaryStatus"></div>
-                  <div class="field">
-                    <label>Summary — editable</label>
-                    <textarea id="fSummary" class="summary-box" placeholder="Generated summary will appear here. You can edit it before Finalize."></textarea>
-                  </div>
-                  <div class="toolbar">
-                    <button class="btn success" id="finalizeSummaryBtn" type="button">FINALIZE SUMMARY</button>
-                  </div>
-                </div>
-
-                <div class="sticky-actions">
-                  <button class="btn" id="savePatientBtn" type="button">SAVE PATIENT</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
+    <span id="headerApiStatus" class="api-dot offline" title="Backend API status"></span>
+    <div id="topActions"></div>
   </div>
-
-  <div id="modalHost"></div>
-  <script src="app.js"></script>
+</header>
+<div class="layout">
+<aside class="sidebar">
+  <div class="nav-title">Workspace</div>
+  <button class="nav-item active">Patients ●</button>
+  <div class="nav-title">Future modules</div>
+  <button class="nav-item disabled">Analytics — PLANNED</button>
+  <button class="nav-item disabled">Archive — PLANNED</button>
+  <button class="nav-item disabled">Integrations — PLANNED</button>
+</aside>
+<main class="main">
+<section id="noShiftView" class="empty">
+  <div class="empty-card"><h1 data-i18n="noActiveShift">No active shift</h1><p data-i18n="oneShiftOnly">Only one shift can be active at a time.</p><button class="btn primary" id="startShiftBtn" data-i18n="startShift">START SHIFT</button></div>
+</section>
+<section id="patientsView" class="hidden">
+<div class="grid2">
+<div>
+  <div class="card">
+    <div class="card-h"><div><h3 data-i18n="importPatient">Import new patient</h3><div class="subtle" data-i18n="autoId">ID automatically starts from 01 in each shift.</div></div></div>
+    <div class="card-b">
+      <div class="inline3">
+        <div class="field"><label>ID</label><input id="newId" disabled></div>
+        <div class="field"><label data-i18n="sex">Sex</label><select id="newSex"><option value="">—</option><option>M</option><option>F</option></select></div>
+        <div class="field"><label data-i18n="yob">Year of birth</label><input id="newYob" inputmode="numeric" maxlength="4" placeholder="1955 or 55"></div>
+      </div>
+      <div class="field"><label data-i18n="mainComplaint">Main complaint</label><input id="newComplaint" placeholder="Chest pain"></div>
+      <button class="btn primary" id="addPatientBtn" data-i18n="addPatient">ADD PATIENT</button>
+    </div>
+  </div>
+  <div class="card mt16">
+    <div class="card-h"><div><h3 data-i18n="patientRecord">Patient record</h3><div class="subtle" data-i18n="waitingOnly">Status shows tests currently waiting for result.</div></div></div>
+    <div class="card-b" style="overflow:auto">
+      <table class="patient-table"><thead><tr><th>ID</th><th data-i18n="sex">Sex</th><th data-i18n="age">Age</th><th data-i18n="mainComplaint">Main complaint</th><th data-i18n="status">Status</th></tr></thead><tbody id="patientTbody"></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-h"><div><h3 id="recordTitle">Patient detail</h3><div class="subtle" id="recordSubtitle">Chọn một bệnh nhân bên trái.</div></div><span id="patientStatusBadge"></span></div>
+  <div class="card-b">
+    <div id="noPatientSelected" class="subtle">No patient selected.</div>
+    <form id="patientForm" class="hidden">
+      <div class="section"><div class="section-title" data-i18n="clinical">1. Clinical</div>
+        <div class="field"><label data-i18n="mainComplaint">Main complaint</label><input id="fMainComplaint"></div>
+        <div class="field"><label data-i18n="complaint">Complaint</label><textarea id="fComplaint" placeholder="Manual input or paste from Heidi..."></textarea></div>
+        <div class="field"><label data-i18n="patientHistory">Patient history</label><textarea id="fHistory"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="testResultsStatus">2. Test results and status</div>
+        <div class="info" id="testStatusHelp">Default = orange dot (Waiting). Grey dot = Not ordered. Save result = green dot.</div>
+        <div class="field"><label data-i18n="physicalExam">Physical examination</label><textarea id="fPhysical"></textarea></div>
+        <div class="test-toolbar"><div class="test-title" data-i18n="lab">Lab</div><button class="btn small" type="button" id="addLabBtn" data-i18n="addLab">+ ADD LAB</button></div><div id="labCards"></div>
+        <div class="test-toolbar"><div class="test-title">EKG</div></div><div id="ekgCard"></div>
+        <div class="test-toolbar"><div class="test-title">AVG / VVG</div></div><div id="gasCard"></div>
+        <div class="test-toolbar"><div><div class="test-title" data-i18n="radiology">Radiology</div><div class="subtle">Body part + RTG / ultrahang / CT / MR, hoặc Other để nhập test cụ thể.</div></div><button class="btn small" type="button" id="addRadiologyBtn" data-i18n="addRadiology">+ ADD RADIOLOGY</button></div><div id="radiologyCards"></div>
+        <div class="test-toolbar"><div class="test-title" data-i18n="consultations">Consultations</div><button class="btn small" type="button" id="addConsultBtn" data-i18n="addConsultation">+ ADD CONSULTATION</button></div><div id="consultCards"></div>
+        <div class="field"><label data-i18n="others">Others</label><textarea id="fOthers"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="whatHappens">3. What happens</div>
+        <div class="field"><label data-i18n="therapy">Therapy</label><textarea id="fTherapy"></textarea></div>
+        <div class="field"><label data-i18n="clinicalCourse">Clinical course / patient status change</label><textarea id="fCourse"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="finalDecision">4. Final decision / disposition</div>
+        <div class="field">
+          <label data-i18n="diagnoses">Diagnoses</label>
+          <textarea id="fDiagnoses" placeholder="Egy diagnózis soronként vagy pontosvesszővel. Magyar vagy latin megnevezés.&#10;Pl.: akut dekompenzált szívelégtelenség&#10;hypoxaemiás légzési elégtelenség&#10;permanens pitvarfibrilláció"></textarea>
+          <div class="subtle" style="margin-top:6px">A Summary elején külön Latin diagnózislista jelenik meg. A rendszer nem állít fel új diagnózist a vizsgálati eredményekből.</div>
+        </div>
+        <div class="field"><label data-i18n="disposition">Disposition</label><select id="fDisposition"><option value="">Active / in progress</option><option value="discharged">Discharged</option><option value="admitted">Admitted / submitted</option><option value="other">Other</option></select></div>
+        <div id="dischargedFields" class="hidden"><div class="field"><label>Recommendation and plan at home</label><div class="recs" id="recList"></div><button class="btn small" type="button" id="addRecBtn">+ Add recommendation</button></div></div>
+        <div id="admittedFields" class="hidden"><div class="inline"><div class="field"><label>Hospital</label><input id="fHospital"></div><div class="field"><label>Ward / department</label><input id="fWard"></div></div><div class="field"><label>Accepting physician</label><input id="fPhysician"></div><div class="field"><label>Additional note</label><textarea id="fAdmissionNote"></textarea></div></div>
+        <div id="otherFields" class="hidden"><div class="field"><label>Outcome</label><input id="fOtherOutcome" placeholder="Transfer, LAMA, death..."></div><div class="field"><label>Details</label><textarea id="fOtherDetails"></textarea></div></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="caseSummary">5. Case summary</div>
+        <div class="info">Review the generated summary before finalizing it.</div>
+        <div class="field">
+          <label data-i18n="backendUrl">AI backend URL</label>
+          <input id="aiBackendUrl" placeholder="https://your-backend.example.com">
+          <div class="subtle" style="margin-top:6px">HTTPS backend address; never enter an OpenAI key here.</div>
+        </div>
+        <div id="aiStatus" class="learning-note"></div>
+<div class="field"><label>Access token</label><input id="accessToken" type="password" autocomplete="off" placeholder="Backend access token (kept in memory only)"></div>
+<div class="toolbar"><button class="btn small" type="button" id="testApiBtn">TEST API</button><button class="btn small" type="button" id="syncCaseBtn">SYNC CASE STATE</button></div>
+<div id="styleMemoryStatus" class="learning-note"></div>
+        <div class="toolbar"><button class="btn primary" id="generateSummaryBtn" type="button" data-i18n="generateSummary">Summary</button></div>
+        <div id="summaryStatus" style="margin:10px 0"></div>
+        <div class="field"><label data-i18n="summaryEditable">Summary — editable</label><textarea id="fSummary" class="summary-box"></textarea></div>
+        <div class="toolbar">
+          <button class="btn success" id="finalizeSummaryBtn" type="button" data-i18n="finalizeSummary">FINALIZE SUMMARY</button>
+          <button class="btn hidden" id="undoFinalizeBtn" type="button" data-i18n="undoFinalize">UNDO FINALIZE</button>
+          <button class="btn danger hidden" id="closeCaseBtn" type="button" data-i18n="closeCase">CLOSE CASE</button>
+          <button class="btn primary hidden" id="reopenCaseBtn" type="button" data-i18n="reopenCase">REOPEN CASE</button>
+        </div>
+      </div>
+      <div class="sticky-actions"><button class="btn" id="savePatientBtn" type="button" data-i18n="savePatient">SAVE PATIENT</button></div>
+    </form>
+  </div>
+</div>
+</div>
+</section>
+</main>
+</div>
+<div id="modalHost"></div>
+<script src="config.js"></script><script src="app.js"></script>
 </body>
 </html>

@@ -1,878 +1,756 @@
-const STORAGE_KEY = "er_command_center_v6";
-const RETENTION_DAYS = 15;
 
-let state = loadState();
-let selectedPatientId = null;
-
-function defaultState() {
-  return { shift: null, patients: [], references: [] };
+const STORAGE_KEY="er_command_center_v6",AI_CONFIG_KEY="er_command_center_ai_config_v1",RETENTION_DAYS=15;
+let state=loadState(),selectedPatientId=null;
+rebuildStyleProfile();
+const UI_LANG_KEY="er_command_center_ui_lang_v1";
+const I18N={
+  en:{
+    noActiveShift:"No active shift",
+    oneShiftOnly:"Only one shift can be active at a time.",
+    startShift:"START SHIFT",
+    importPatient:"Import new patient",
+    autoId:"ID automatically starts from 01 in each shift.",
+    sex:"Sex",
+    yob:"Year of birth",
+    mainComplaint:"Main complaint",
+    addPatient:"ADD PATIENT",
+    patientRecord:"Patient record",
+    waitingOnly:"Status shows tests currently waiting for result.",
+    age:"Age",status:"Status",
+    clinical:"1. Clinical",
+    tests:"2. Tests",
+    testResultsStatus:"2. Test results and status",
+    physicalExam:"Physical examination",
+    lab:"Lab",
+    radiology:"Radiology",
+    consultations:"Consultations",
+    others:"Others",
+    whatHappens:"3. What happens",
+    therapy:"Therapy",
+    clinicalCourse:"Clinical course / patient status change",
+    diagnoses:"Diagnoses",
+    disposition:"Disposition",
+    complaint:"Complaint",
+    patientHistory:"Patient history",
+    treatmentCourse:"3. What happens / treatment",
+    finalDecision:"4. Final decision / disposition",
+    caseSummary:"5. Case summary",
+    backendUrl:"AI backend URL",
+    generateSummary:"Summary",
+    summaryEditable:"Summary — editable",
+    finalizeSummary:"FINALIZE SUMMARY",
+    undoFinalize:"UNDO FINALIZE",
+    closeCase:"CLOSE CASE",
+    reopenCase:"REOPEN CASE",
+    savePatient:"SAVE PATIENT",
+    addLab:"+ ADD LAB",
+    addRadiology:"+ ADD RADIOLOGY",
+    addConsultation:"+ ADD CONSULTATION"
+  },
+  hu:{
+    noActiveShift:"Nincs aktív műszak",
+    oneShiftOnly:"Egyszerre csak egy aktív műszak lehet.",
+    startShift:"MŰSZAK INDÍTÁSA",
+    importPatient:"Új beteg felvétele",
+    autoId:"A betegazonosító minden műszakban 01-től indul.",
+    sex:"Nem",
+    yob:"Születési év",
+    mainComplaint:"Fő panasz",
+    addPatient:"BETEG HOZZÁADÁSA",
+    patientRecord:"Beteglista",
+    waitingOnly:"A státusz csak a folyamatban lévő vizsgálatokat mutatja.",
+    age:"Életkor",status:"Státusz",
+    clinical:"1. Klinikai adatok",
+    tests:"2. Vizsgálatok",
+    testResultsStatus:"2. Vizsgálati eredmények és státusz",
+    physicalExam:"Fizikális vizsgálat",
+    lab:"Labor",
+    radiology:"Radiológia",
+    consultations:"Konzíliumok",
+    others:"Egyéb",
+    whatHappens:"3. Terápia és klinikai lefolyás",
+    therapy:"Terápia",
+    clinicalCourse:"Klinikai lefolyás / állapotváltozás",
+    diagnoses:"Diagnózisok",
+    disposition:"Diszpozíció",
+    complaint:"Jelen panaszok",
+    patientHistory:"Anamnézis",
+    treatmentCourse:"3. Terápia / klinikai lefolyás",
+    finalDecision:"4. Végső döntés / diszpozíció",
+    caseSummary:"5. Esetösszefoglaló",
+    backendUrl:"AI backend URL",
+    generateSummary:"Összefoglaló",
+    summaryEditable:"Összefoglaló — szerkeszthető",
+    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE",
+    undoFinalize:"VÉGLEGESÍTÉS VISSZAVONÁSA",
+    closeCase:"ESET LEZÁRÁSA",
+    reopenCase:"ESET ÚJRANYITÁSA",
+    savePatient:"BETEG MENTÉSE",
+    addLab:"+ LABOR",
+    addRadiology:"+ RADIOLÓGIA",
+    addConsultation:"+ KONZÍLIUM"
+  }
+};
+let uiLang=localStorage.getItem(UI_LANG_KEY)||"en";
+function applyLanguage(lang){
+  if(typeof apiBusy!=="undefined" && apiBusy)return;
+  collect();
+  uiLang=I18N[lang]?lang:"en";
+  localStorage.setItem(UI_LANG_KEY,uiLang);
+  document.documentElement.lang=uiLang==="hu"?"hu":"en";
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key=el.dataset.i18n;
+    if(I18N[uiLang][key])el.textContent=I18N[uiLang][key];
+  });
+  const help=document.getElementById("testStatusHelp");
+  if(help){
+    help.textContent=uiLang==="hu"
+      ?"Narancssárga pont = eredményre vár. Szürke pont = nem történt rendelés. Mentett eredmény = zöld pont."
+      :"Orange dot = waiting for result. Grey dot = not ordered. Saved result = green dot.";
+  }
+  const disp=document.getElementById("fDisposition");
+  if(disp){
+    const labels=uiLang==="hu"
+      ?["Aktív / folyamatban","Otthonába bocsátva","Osztályos felvétel / áthelyezés","Egyéb"]
+      :["Active / in progress","Discharged","Admitted / transferred","Other"];
+    [...disp.options].forEach((o,i)=>{if(labels[i])o.textContent=labels[i]});
+  }
+  const en=document.getElementById("langEnBtn"),hu=document.getElementById("langHuBtn");
+  if(en)en.classList.toggle("active",uiLang==="en");
+  if(hu)hu.classList.toggle("active",uiLang==="hu");
+  renderHeader();
 }
-
-function loadState() {
-  try {
-    return purgeExpired(JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultState());
-  } catch {
-    return defaultState();
+async function testBackendApi(){return operation(async()=>{
+  document.getElementById('headerApiStatus').className='api-dot offline';
+  saveAiConfig();await api('/api/test');
+  document.getElementById('headerApiStatus').className='api-dot online';
+  setAiStatus('Backend, rules, model access and Drive verified.','ok');
+});}
+function loadAiConfig(){
+  try{
+    return JSON.parse(localStorage.getItem(AI_CONFIG_KEY))||{backendUrl:window.SBO_CONFIG?.apiBaseUrl||""};
+  }catch{
+    return{backendUrl:window.SBO_CONFIG?.apiBaseUrl||""};
   }
 }
-
-function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveAiConfig(){
+  const url=(document.getElementById("aiBackendUrl")?.value||"").trim();
+  localStorage.setItem(AI_CONFIG_KEY,JSON.stringify({backendUrl:url}));
 }
-
-function purgeExpired(s) {
-  const cutoff = Date.now() - RETENTION_DAYS * 86400000;
-  s.patients = (s.patients || []).filter((p) => new Date(p.createdAt).getTime() >= cutoff);
-  s.references = (s.references || []).filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+function renderAiConfig(){
+  const input=document.getElementById("aiBackendUrl");
+  if(!input)return;
+  const cfg=loadAiConfig();
+  input.value=cfg.backendUrl||window.SBO_CONFIG?.apiBaseUrl||"";
+  input.onchange=saveAiConfig;
+  input.onblur=saveAiConfig;
+}
+function setAiStatus(message,kind=""){
+  const el=document.getElementById("aiStatus");
+  if(!el)return;
+  el.textContent=message;
+  el.style.color=kind==="error"?"#b91c1c":kind==="ok"?"#166534":"#475569";
+}
+function defaultStyleProfile(){
+  return{
+    version:1,
+    finalizedSamples:0,
+    editedSamples:0,
+    phraseVotes:{},
+    preferred:{},
+    updatedAt:null
+  };
+}
+function defaultState(){return{shift:null,patients:[],references:[],styleProfile:defaultStyleProfile()}}
+function nowIso(){return new Date().toISOString()}
+function loadState(){try{return purgeExpired(JSON.parse(sessionStorage.getItem(STORAGE_KEY))||defaultState())}catch{return defaultState()}}
+function persist(){state=purgeExpired(state);sessionStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function purgeExpired(s){
+  const c=Date.now()-RETENTION_DAYS*86400000;
+  s.patients=(s.patients||[]).filter(p=>new Date(p.createdAt).getTime()>=c);
+  s.references=(s.references||[]).filter(r=>new Date(r.createdAt).getTime()>=c);
+  s.styleProfile=s.styleProfile||defaultStyleProfile();
+  s.patients.forEach(p=>{
+    if(p.tests?.radiology)p.tests.radiology.forEach(normalizeRadiologyEntry);
+    if(!p.caseStatus)p.caseStatus=p.closedAt?"closed":"active";
+    if(typeof p.reopenCount!=="number")p.reopenCount=0;
+  });
   return s;
 }
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function fmtTime(iso) {
-  return iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-}
-
-function ageFromYob(yob) {
-  const year = parseInt(yob, 10);
-  return year ? new Date().getFullYear() - year : "";
-}
-
-function activeShiftPatients() {
-  return state.shift ? state.patients.filter((p) => p.shiftId === state.shift.id) : [];
-}
-
-function nextPatientId() {
-  return String(activeShiftPatients().length + 1).padStart(2, "0");
-}
-
-function patientById(id) {
-  return state.patients.find((p) => p.id === id);
-}
-
-function isCompleted(patient) {
-  return Boolean(patient.summaryFinalizedAt);
-}
-
-function newEntry(type = "") {
-  return { type, mode: "waiting", text: "", savedText: "" };
-}
-
-function entryStatus(entry) {
-  if (entry.mode === "notordered") return "notordered";
-  if (
-    (entry.savedText || "").trim() &&
-    (entry.text || "").trim() === (entry.savedText || "").trim()
-  ) {
-    return "result";
+function fmtTime(x){return x?new Date(x).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):""}
+function normalizeYob(y){
+  const s=String(y??"").trim();
+  if(/^\d{2}$/.test(s)){
+    const n=Number(s), current2=new Date().getFullYear()%100;
+    return String(n<=current2?2000+n:1900+n);
   }
-  return "waiting";
+  return s;
 }
-
-function waitingLabels(patient) {
-  const out = [];
-
-  patient.tests.labs.forEach((entry, i) => {
-    if (entryStatus(entry) === "waiting") out.push(`Lab ${i + 1}`);
-  });
-
-  if (entryStatus(patient.tests.ekg) === "waiting") out.push("EKG");
-
-  if (entryStatus(patient.tests.gas) === "waiting") {
-    out.push(/\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG");
+function age(y){
+  const year=parseInt(normalizeYob(y),10);
+  return year?new Date().getFullYear()-year:"";
+}
+function pts(){return state.shift?state.patients.filter(p=>p.shiftId===state.shift.id):[]}
+function nextId(){return String(pts().length+1).padStart(2,"0")}
+function patient(id=selectedPatientId){return state.patients.find(p=>p.id===id)}
+function isClosed(p){return p?.caseStatus==="closed"||!!p?.closedAt}
+function completed(p){return isClosed(p)}
+function entry(type=""){return{type,mode:"waiting",text:"",savedText:""}}
+function radiologyEntry(){
+  return{type:"",bodyPart:"",modality:"",otherTest:"",mode:"waiting",text:"",savedText:""};
+}
+function normalizeRadiologyEntry(e){
+  if(!e)return radiologyEntry();
+  if(e.bodyPart===undefined)e.bodyPart="";
+  if(e.modality===undefined)e.modality="";
+  if(e.otherTest===undefined)e.otherTest="";
+  // Backward compatibility: old free-text radiology type becomes Other.
+  if(!e.bodyPart&&!e.modality&&!e.otherTest&&(e.type||"").trim()){
+    e.modality="other";
+    e.otherTest=(e.type||"").trim();
   }
-
-  patient.tests.radiology.forEach((entry, i) => {
-    if (entryStatus(entry) === "waiting") {
-      out.push(entry.type?.trim() || `Radiology ${i + 1}`);
-    }
-  });
-
-  patient.tests.consultations.forEach((entry, i) => {
-    if (entryStatus(entry) === "waiting") {
-      out.push(entry.type?.trim() || `Consultation ${i + 1}`);
-    }
-  });
-
-  return out;
+  return e;
 }
-
-function renderHeader() {
-  const meta = document.getElementById("shiftMeta");
-  const actions = document.getElementById("topActions");
-  meta.innerHTML = "";
-  actions.innerHTML = "";
-
-  if (!state.shift) {
-    meta.innerHTML = '<span class="metric">No active shift</span>';
+function radiologyType(e){
+  normalizeRadiologyEntry(e);
+  const body=(e.bodyPart||"").trim();
+  const modality=(e.modality||"").trim();
+  const other=(e.otherTest||"").trim();
+  if(modality==="other"){
+    if(body&&other)return `${body} — ${other}`;
+    return other||body||"Radiology";
+  }
+  return [body,modality].filter(Boolean).join(" ").trim()||"Radiology";
+}
+function eStatus(e){if(e.mode==="notordered")return"notordered";if((e.savedText||"").trim()&&(e.text||"").trim()===(e.savedText||"").trim())return"result";return"waiting"}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function attr(v){return esc(v).replace(/`/g,"&#096;")}
+function waits(p){const a=[];p.tests.labs.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(`Lab ${i+1}`));if(eStatus(p.tests.ekg)==="waiting")a.push("EKG");if(eStatus(p.tests.gas)==="waiting")a.push(/\bVVG\b/i.test(p.tests.gas.text||"")?"VVG":"AVG");p.tests.radiology.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(radiologyType(e)||`Radiology ${i+1}`));p.tests.consultations.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(e.type?.trim()||`Consultation ${i+1}`));return a}
+function renderHeader(){
+  const m=document.getElementById("shiftMeta"),a=document.getElementById("topActions");
+  m.innerHTML="";a.innerHTML="";
+  const hu=uiLang==="hu";
+  if(!state.shift){
+    m.innerHTML=`<span class="metric">${hu?"Nincs aktív műszak":"No active shift"}</span>`;
     return;
   }
-
-  const pts = activeShiftPatients();
-  const completed = pts.filter(isCompleted).length;
-  const active = pts.length - completed;
-
-  meta.innerHTML = `
-    <span class="shift-pill"><span class="dot"></span> SHIFT ACTIVE • Started ${fmtTime(state.shift.startedAt)}</span>
-    <span class="metric">Patients <b>${pts.length}</b></span>
-    <span class="metric">Active <b>${active}</b></span>
-    <span class="metric">Completed <b>${completed}</b></span>
-  `;
-
-  actions.innerHTML = '<button class="btn danger" id="endShiftBtn">END SHIFT</button>';
-  document.getElementById("endShiftBtn").onclick = endShiftStep1;
+  const p=pts(),d=p.filter(completed).length;
+  m.innerHTML=`<span class="pill"><span class="dot"></span> ${hu?"AKTÍV MŰSZAK":"SHIFT ACTIVE"} • ${hu?"Kezdés":"Started"} ${fmtTime(state.shift.startedAt)}</span><span class="metric">${hu?"Betegek":"Patients"} <b>${p.length}</b></span><span class="metric">${hu?"Aktív":"Active"} <b>${p.length-d}</b></span><span class="metric">${hu?"Lezárt":"Completed"} <b>${d}</b></span>`;
+  a.innerHTML=`<button class="btn danger" id="endShiftBtn">${hu?"MŰSZAK LEZÁRÁSA":"END SHIFT"}</button>`;
+  document.getElementById("endShiftBtn").onclick=endShiftStep1;
 }
-
-function renderApp() {
-  renderHeader();
-
-  document.getElementById("noShiftView").classList.toggle("hidden", Boolean(state.shift));
-  document.getElementById("patientsView").classList.toggle("hidden", !state.shift);
-
-  if (state.shift) renderPatients();
+function renderApp(){renderHeader();noShiftView.classList.toggle("hidden",!!state.shift);patientsView.classList.toggle("hidden",!state.shift);if(state.shift)renderPatients()}
+function patientTableStatus(p){
+  if(isClosed(p))return '<span class="badge closed">CASE CLOSED</span>';
+  const w=waits(p);
+  return w.length?`<div class="wait-stack">${w.map(x=>`<span class="wait-chip">${esc(x)}</span>`).join("")}</div>`:"—";
 }
-
-function renderPatients() {
-  document.getElementById("newId").value = nextPatientId();
-
-  const tbody = document.getElementById("patientTbody");
-  tbody.innerHTML = "";
-
-  activeShiftPatients().forEach((patient) => {
-    const waits = waitingLabels(patient);
-    const statusHtml = waits.length
-      ? `<div class="wait-stack">${waits
-          .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
-          .join("")}</div>`
-      : '<span class="wait-none">—</span>';
-
-    const tr = document.createElement("tr");
-    tr.dataset.id = patient.id;
-
-    if (patient.id === selectedPatientId) tr.classList.add("selected");
-
-    tr.innerHTML = `
-      <td>${patient.localId}</td>
-      <td>${patient.sex}</td>
-      <td>${ageFromYob(patient.yob)}</td>
-      <td>${esc(patient.mainComplaint)}</td>
-      <td data-status-cell="${patient.id}">${statusHtml}</td>
-    `;
-
-    tr.onclick = () => {
-      selectedPatientId = patient.id;
-      renderPatients();
-      loadPatientForm();
-    };
-
-    tbody.appendChild(tr);
+function renderPatients(){
+  newId.value=nextId();
+  patientTbody.innerHTML="";
+  pts().forEach(p=>{
+    const tr=document.createElement("tr");
+    tr.dataset.id=p.id;
+    if(p.id===selectedPatientId)tr.classList.add("selected");
+    tr.innerHTML=`<td>${esc(p.localId)}</td><td>${esc(p.sex)}</td><td>${age(p.yob)}</td><td>${esc(p.mainComplaint)}</td><td>${patientTableStatus(p)}</td>`;
+    tr.onclick=()=>{if(apiBusy)return;collect();persist();selectedPatientId=p.id;renderPatients()};
+    patientTbody.appendChild(tr);
   });
-
-  if (selectedPatientId) {
+  if(selectedPatientId&&patient()){
     loadPatientForm();
-  } else {
-    document.getElementById("patientForm").classList.add("hidden");
-    document.getElementById("noPatientSelected").classList.remove("hidden");
-    document.getElementById("recordTitle").textContent = "Patient detail";
-    document.getElementById("recordSubtitle").textContent = "Chọn một bệnh nhân bên trái.";
-    document.getElementById("patientStatusBadge").innerHTML = "";
+  }else{
+    patientForm.classList.add("hidden");
+    noPatientSelected.classList.remove("hidden");
+    recordTitle.textContent="Patient detail";
+    recordSubtitle.textContent="Chọn một bệnh nhân bên trái.";
+    patientStatusBadge.innerHTML="";
   }
 }
-
-function updateStatusCell(patient) {
-  const cell = document.querySelector(`[data-status-cell="${patient.id}"]`);
-  if (!cell) return;
-
-  const waits = waitingLabels(patient);
-
-  cell.innerHTML = waits.length
-    ? `<div class="wait-stack">${waits
-        .map((x) => `<span class="wait-chip">${esc(x)}</span>`)
-        .join("")}</div>`
-    : '<span class="wait-none">—</span>';
+function updateStatusCell(p=patient()){
+  if(!p)return;
+  const row=document.querySelector(`tr[data-id="${p.id}"]`);
+  if(!row)return;
+  row.children[4].innerHTML=patientTableStatus(p);
 }
-
-function addPatient() {
-  if (!state.shift) return;
-
-  const sex = document.getElementById("newSex").value;
-  const yob = document.getElementById("newYob").value.trim();
-  const mainComplaint = document.getElementById("newComplaint").value.trim();
-
-  if (!sex || !yob || !mainComplaint) {
-    alert("Please enter Sex, Year of birth and Main complaint.");
-    return;
+function addPatient(){
+  if(!state.shift)return;
+  const sex=newSex.value,yob=normalizeYob(newYob.value),mc=newComplaint.value.trim();
+  const currentYear=new Date().getFullYear();
+  if(!sex||!yob||!mc)return alert("Please enter Sex, Year of birth and Main complaint.");
+  if(!/^\d{4}$/.test(yob)||Number(yob)<1900||Number(yob)>currentYear){
+    return alert("Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
   }
+  newYob.value=yob;const p={id:crypto.randomUUID(),shiftId:state.shift.id,localId:nextId(),sex,yob,mainComplaint:mc,complaint:"",history:"",physical:"",tests:{labs:[entry()],ekg:entry(),gas:entry(),radiology:[radiologyEntry()],consultations:[entry()]},others:"",therapy:"",course:"",diagnoses:"",disposition:"",recommendations:[""],hospital:"",ward:"",physician:"",admissionNote:"",otherOutcome:"",otherDetails:"",summary:"",summaryGeneratedAt:null,summaryFinalizedText:"",summaryFinalizedAt:null,caseStatus:"active",closedAt:null,reopenedAt:null,reopenCount:0,createdAt:nowIso(),updatedAt:nowIso()};state.patients.push(p);selectedPatientId=p.id;newSex.value=newYob.value=newComplaint.value="";persist();renderApp()}
+function loadPatientForm(){
+  const p=patient();
+  if(!p)return;
+  patientForm.classList.remove("hidden");
+  noPatientSelected.classList.add("hidden");
+  recordTitle.textContent=`Patient ${p.localId}`;
+  recordSubtitle.textContent=`${p.sex} • ${age(p.yob)} y • ${p.mainComplaint}`;
+  patientStatusBadge.innerHTML=isClosed(p)
+    ?'<span class="badge closed">CASE CLOSED</span>'
+    :'<span class="badge active">ACTIVE / IN PROGRESS</span>';
 
-  const patient = {
-    id: crypto.randomUUID(),
-    shiftId: state.shift.id,
-    localId: nextPatientId(),
-    sex,
-    yob,
-    mainComplaint,
-    complaint: "",
-    history: "",
-    physical: "",
-    tests: {
-      labs: [newEntry()],
-      ekg: newEntry(),
-      gas: newEntry(),
-      radiology: [newEntry("")],
-      consultations: [newEntry("")]
-    },
-    others: "",
-    therapy: "",
-    course: "",
-    disposition: "",
-    recommendations: [""],
-    hospital: "",
-    ward: "",
-    physician: "",
-    admissionNote: "",
-    otherOutcome: "",
-    otherDetails: "",
-    summary: "",
-    summaryGeneratedAt: null,
-    summaryFinalizedText: "",
-    summaryFinalizedAt: null,
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+  const v={
+    fMainComplaint:p.mainComplaint,fComplaint:p.complaint,fHistory:p.history,
+    fPhysical:p.physical,fOthers:p.others,fTherapy:p.therapy,fCourse:p.course,
+    fDiagnoses:p.diagnoses||"",fDisposition:p.disposition,fHospital:p.hospital,
+    fWard:p.ward,fPhysician:p.physician,fAdmissionNote:p.admissionNote,
+    fOtherOutcome:p.otherOutcome,fOtherDetails:p.otherDetails,fSummary:p.summary
   };
-
-  state.patients.push(patient);
+  Object.entries(v).forEach(([id,val])=>document.getElementById(id).value=val||"");
+  renderTests(p);
+  renderRecs(p);
+  dispositionUI();
+  renderSummaryStatus(p);
+  renderStyleMemory();
+  renderBackendPreview();
+  renderAiConfig();
+  applyCaseLock(p);
+}
+function badge(s){
+  const title=s==="result"?"Result available":s==="notordered"?"Not ordered":"Waiting for result";
+  return `<span class="test-status-dot ${s}" title="${title}" aria-label="${title}"></span>`;
+}
+function deleteTestEntry(group,index){
+  const p=patient();
+  if(!p)return;
+  const labels={labs:"Lab",radiology:"Radiology",consultations:"Consultation"};
+  const item=labels[group]||"item";
+  if(!confirm(`Delete this ${item}?`))return;
+  p.tests[group].splice(index,1);
   persist();
-
-  selectedPatientId = patient.id;
-
-  document.getElementById("newSex").value = "";
-  document.getElementById("newYob").value = "";
-  document.getElementById("newComplaint").value = "";
-
-  renderApp();
+  renderTests(p);
+  updateStatusCell(p);
+  renderSummaryStatus(p);
+  flash(`${item} deleted.`);
 }
 
-function loadPatientForm() {
-  const patient = patientById(selectedPatientId);
-  if (!patient) return;
-
-  document.getElementById("patientForm").classList.remove("hidden");
-  document.getElementById("noPatientSelected").classList.add("hidden");
-
-  document.getElementById("recordTitle").textContent = `Patient ${patient.localId}`;
-  document.getElementById("recordSubtitle").textContent =
-    `${patient.sex} • ${ageFromYob(patient.yob)} y • ${patient.mainComplaint}`;
-
-  document.getElementById("patientStatusBadge").innerHTML =
-    `<span class="badge ${isCompleted(patient) ? "done" : "active"}">${isCompleted(patient) ? "COMPLETED" : "ACTIVE / IN PROGRESS"}</span>`;
-
-  const values = {
-    fMainComplaint: patient.mainComplaint,
-    fComplaint: patient.complaint,
-    fHistory: patient.history,
-    fPhysical: patient.physical,
-    fOthers: patient.others,
-    fTherapy: patient.therapy,
-    fCourse: patient.course,
-    fDisposition: patient.disposition,
-    fHospital: patient.hospital,
-    fWard: patient.ward,
-    fPhysician: patient.physician,
-    fAdmissionNote: patient.admissionNote,
-    fOtherOutcome: patient.otherOutcome,
-    fOtherDetails: patient.otherDetails,
-    fSummary: patient.summary
-  };
-
-  Object.entries(values).forEach(([id, value]) => {
-    document.getElementById(id).value = value || "";
-  });
-
-  renderAllTests(patient);
-  renderRecommendations(patient);
-  updateDispositionVisibility();
-  renderSummaryStatus(patient);
+function modeDots(e){
+  const s=eStatus(e);
+  return `<div class="mode-dots" data-mode-dots>
+    <button type="button" class="mode-dot-btn waiting ${s==="waiting"?"active":""}" data-mode-choice="waiting" title="Waiting for result" aria-label="Waiting for result"></button>
+    <button type="button" class="mode-dot-btn notordered ${s==="notordered"?"active":""}" data-mode-choice="notordered" title="Not ordered" aria-label="Not ordered"></button>
+    <span class="mode-dot-btn result ${s==="result"?"active":""}" title="Result available" aria-label="Result available"></span>
+  </div>`;
 }
 
-function renderAllTests(patient) {
-  renderGroupCards("labCards", patient.tests.labs, "Lab", "lab");
-  renderSingleCard("ekgCard", patient.tests.ekg, "EKG", "ekg");
-  renderSingleCard(
-    "gasCard",
-    patient.tests.gas,
-    /\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG",
-    "gas"
-  );
-  renderDynamicCards(
-    "radiologyCards",
-    patient.tests.radiology,
-    "Radiology",
-    "radiology",
-    "Type e.g. CT, CXR, Ultrasound"
-  );
-  renderDynamicCards(
-    "consultCards",
-    patient.tests.consultations,
-    "Consultation",
-    "consultations",
-    "Type e.g. Cardiology, Neurology"
-  );
-}
-
-function statusBadge(status) {
-  return `<span class="test-status ${status}">${status === "result"
-    ? "RESULT AVAILABLE"
-    : status === "notordered"
-    ? "NOT ORDERED"
-    : "WAITING FOR RESULT"}</span>`;
-}
-
-function renderGroupCards(hostId, entries, label, prefix) {
-  const host = document.getElementById(hostId);
-  host.innerHTML = "";
-
-  entries.forEach((entry, i) => {
-    host.appendChild(makeSimpleCard(`${label} ${i + 1}`, entry, `${prefix}-${i}`));
-  });
-
-  document.getElementById("addLabBtn").disabled = entries.length >= 3;
-}
-
-function renderSingleCard(hostId, entry, label, key) {
-  const host = document.getElementById(hostId);
-  host.innerHTML = "";
-  host.appendChild(makeSimpleCard(label, entry, key, key === "gas"));
-}
-
-function makeSimpleCard(label, entry, key, isGas = false) {
-  const status = entryStatus(entry);
-  const card = document.createElement("div");
-
-  card.className =
-    `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
-  card.dataset.card = key;
-
-  card.innerHTML = `
+function simpleCard(label,e,key,isGas=false,onDelete=null){
+  const s=eStatus(e),d=document.createElement("div");
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
     <div class="test-head">
-      <div class="test-name-wrap">
-        <span class="test-name">${label}</span>
-        ${isGas ? `<span class="gas-type">${label}</span>` : ""}
+      <span class="test-name">${label}</span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        ${onDelete?'<button class="btn small delete-test" type="button" data-delete>DELETE</button>':""}
       </div>
-      ${statusBadge(status)}
     </div>
-
     <div class="test-grid">
-      <select data-mode="${key}">
-        <option value="waiting" ${entry.mode !== "notordered" ? "selected" : ""}>Waiting for result</option>
-        <option value="notordered" ${entry.mode === "notordered" ? "selected" : ""}>Not ordered</option>
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="${label} result...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
+  if(onDelete)d.querySelector("[data-delete]").onclick=onDelete;
+  wire(d,e,key,isGas);
+  return d;
+}
+
+function dynamicCard(label,e,key,ph,onDelete=null){
+  const s=eStatus(e),d=document.createElement("div");
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
+    <div class="test-head">
+      <span class="test-name">${label}</span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        ${onDelete?'<button class="btn small delete-test" type="button" data-delete>DELETE</button>':""}
+      </div>
+    </div>
+    <div class="dynamic-grid">
+      <input data-type value="${attr(e.type||"")}" placeholder="${ph}">
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="Result / note...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
+  const t=d.querySelector("[data-type]");
+  t.oninput=()=>{e.type=t.value;persist();updateStatusCell()};
+  if(onDelete)d.querySelector("[data-delete]").onclick=onDelete;
+  wire(d,e,key,false);
+  return d;
+}
+
+function radiologyCard(e,index){
+  normalizeRadiologyEntry(e);
+  const key=`rad-${index}`,s=eStatus(e),d=document.createElement("div");
+  const bodyParts=["","koponya","mellkas","has","mellkas és has","has és kismedence"];
+  const modalities=["","RTG","ultrahang","CT","MR","other"];
+  const options=(arr,current,labels={})=>arr.map(v=>`<option value="${attr(v)}"${v===current?" selected":""}>${labels[v]||v||"— select —"}</option>`).join("");
+
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
+    <div class="test-head">
+      <span class="test-name">Radiology ${index+1} <span class="subtle" data-rad-label>${esc(radiologyType(e))}</span></span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        <button class="btn small delete-test" type="button" data-delete>DELETE</button>
+      </div>
+    </div>
+    <div class="radiology-grid${e.modality==="other"?" has-other":""}">
+      <select data-body>
+        ${options(bodyParts,e.bodyPart)}
       </select>
+      <select data-modality>
+        ${options(modalities,e.modality,{other:"Other / specific"})}
+      </select>
+      <input data-other class="${e.modality==="other"?"":"hidden"}" value="${attr(e.otherTest||"")}" placeholder="Specific test e.g. CT angiographia">
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="Radiology result...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
 
-      <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="${label} result...">${esc(entry.text || "")}</textarea>
+  const body=d.querySelector("[data-body]");
+  const modality=d.querySelector("[data-modality]");
+  const other=d.querySelector("[data-other]");
+  const label=d.querySelector("[data-rad-label]");
 
-      <button type="button" class="btn small primary test-save" data-save="${key}"
-        ${!entry.text.trim() || entry.mode === "notordered" || status === "result" ? "disabled" : ""}>
-        SAVE RESULT
-      </button>
-    </div>
-  `;
-
-  wireCard(card, entry, key);
-
-  return card;
-}
-
-function renderDynamicCards(hostId, entries, label, prefix, placeholder) {
-  const host = document.getElementById(hostId);
-  host.innerHTML = "";
-
-  entries.forEach((entry, i) => {
-    const key = `${prefix}-${i}`;
-    const status = entryStatus(entry);
-    const card = document.createElement("div");
-
-    card.className =
-      `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
-
-    card.dataset.card = key;
-
-    card.innerHTML = `
-      <div class="test-head">
-        <div class="test-name-wrap"><span class="test-name">${label} ${i + 1}</span></div>
-        ${statusBadge(status)}
-      </div>
-
-      <div class="dynamic-grid">
-        <input data-type="${key}" value="${attr(entry.type || "")}" placeholder="${placeholder}" />
-
-        <select data-mode="${key}">
-          <option value="waiting" ${entry.mode !== "notordered" ? "selected" : ""}>Waiting for result</option>
-          <option value="notordered" ${entry.mode === "notordered" ? "selected" : ""}>Not ordered</option>
-        </select>
-
-        <textarea data-text="${key}" ${entry.mode === "notordered" ? "disabled" : ""} placeholder="Result / note...">${esc(entry.text || "")}</textarea>
-
-        <button type="button" class="btn small primary test-save" data-save="${key}"
-          ${!entry.text.trim() || entry.mode === "notordered" || status === "result" ? "disabled" : ""}>
-          SAVE RESULT
-        </button>
-      </div>
-    `;
-
-    host.appendChild(card);
-
-    const typeInput = card.querySelector(`[data-type="${key}"]`);
-    typeInput.oninput = () => {
-      entry.type = typeInput.value;
-      persist();
-      updateStatusCell(patientById(selectedPatientId));
-    };
-
-    wireCard(card, entry, key);
-  });
-}
-
-function wireCard(card, entry, key) {
-  const mode = card.querySelector(`[data-mode="${key}"]`);
-  const text = card.querySelector(`[data-text="${key}"]`);
-  const save = card.querySelector(`[data-save="${key}"]`);
-
-  function refreshVisual() {
-    const status = entryStatus(entry);
-
-    card.className =
-      `test-card ${status === "result" ? "result" : status === "notordered" ? "notordered" : ""}`;
-
-    card.querySelector(".test-status").outerHTML = statusBadge(status);
-    text.disabled = entry.mode === "notordered";
-    save.disabled =
-      !entry.text.trim() || entry.mode === "notordered" || status === "result";
-
-    updateStatusCell(patientById(selectedPatientId));
-  }
-
-  mode.onchange = () => {
-    entry.mode = mode.value;
+  const updateType=()=>{
+    e.bodyPart=body.value;
+    e.modality=modality.value;
+    e.otherTest=other.value;
+    e.type=radiologyType(e);
+    const isOther=e.modality==="other";
+    other.classList.toggle("hidden",!isOther);
+    d.querySelector(".radiology-grid").classList.toggle("has-other",isOther);
+    label.textContent=e.type;
     persist();
-    refreshVisual();
+    updateStatusCell();
   };
+  body.onchange=updateType;
+  modality.onchange=updateType;
+  other.oninput=updateType;
+  d.querySelector("[data-delete]").onclick=()=>deleteTestEntry("radiology",index);
+  wire(d,e,key,false);
+  return d;
+}
 
-  text.oninput = () => {
-    entry.text = text.value;
-    persist();
-    refreshVisual();
+function wire(card,e,key,isGas){
+  const modeButtons=[...card.querySelectorAll("[data-mode-choice]")];
+  const txt=card.querySelector("[data-text]");
+  const save=card.querySelector("[data-save]");
 
-    if (key === "gas") {
-      const label = /\bVVG\b/i.test(entry.text || "") ? "VVG" : "AVG";
-      card.querySelector(".test-name").textContent = label;
-      card.querySelector(".gas-type").textContent = label;
+  const refresh=()=>{
+    const s=eStatus(e);
+    card.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+    txt.disabled=e.mode==="notordered";
+    save.disabled=!e.text.trim()||e.mode==="notordered"||s==="result";
+
+    modeButtons.forEach(btn=>{
+      const choice=btn.dataset.modeChoice;
+      btn.classList.toggle("active",choice===s);
+    });
+    const resultDot=card.querySelector(".mode-dot-btn.result");
+    if(resultDot)resultDot.classList.toggle("active",s==="result");
+
+    if(isGas){
+      const name=card.querySelector(".test-name");
+      if(name)name.textContent=/\bVVG\b/i.test(e.text||"")?"VVG":"AVG";
     }
   };
 
-  save.onclick = () => {
-    if (!entry.text.trim()) return;
-
-    entry.savedText = entry.text;
-    entry.mode = "waiting";
-    persist();
-    refreshVisual();
-    flash("Result saved.");
-  };
-}
-
-function addLab() {
-  const patient = patientById(selectedPatientId);
-  if (!patient || patient.tests.labs.length >= 3) return;
-
-  patient.tests.labs.push(newEntry());
-  persist();
-  renderAllTests(patient);
-  updateStatusCell(patient);
-}
-
-function addRadiology() {
-  const patient = patientById(selectedPatientId);
-  if (!patient) return;
-
-  patient.tests.radiology.push(newEntry(""));
-  persist();
-  renderAllTests(patient);
-  updateStatusCell(patient);
-}
-
-function addConsult() {
-  const patient = patientById(selectedPatientId);
-  if (!patient) return;
-
-  patient.tests.consultations.push(newEntry(""));
-  persist();
-  renderAllTests(patient);
-  updateStatusCell(patient);
-}
-
-function collectForm() {
-  const patient = patientById(selectedPatientId);
-  if (!patient) return null;
-
-  patient.mainComplaint = document.getElementById("fMainComplaint").value;
-  patient.complaint = document.getElementById("fComplaint").value;
-  patient.history = document.getElementById("fHistory").value;
-  patient.physical = document.getElementById("fPhysical").value;
-  patient.others = document.getElementById("fOthers").value;
-  patient.therapy = document.getElementById("fTherapy").value;
-  patient.course = document.getElementById("fCourse").value;
-  patient.disposition = document.getElementById("fDisposition").value;
-  patient.hospital = document.getElementById("fHospital").value;
-  patient.ward = document.getElementById("fWard").value;
-  patient.physician = document.getElementById("fPhysician").value;
-  patient.admissionNote = document.getElementById("fAdmissionNote").value;
-  patient.otherOutcome = document.getElementById("fOtherOutcome").value;
-  patient.otherDetails = document.getElementById("fOtherDetails").value;
-  patient.summary = document.getElementById("fSummary").value;
-  patient.recommendations = [...document.querySelectorAll("[data-rec]")].map(
-    (x) => x.value
-  );
-  patient.updatedAt = nowIso();
-
-  return patient;
-}
-
-function savePatient() {
-  const patient = collectForm();
-  if (!patient) return;
-
-  persist();
-  renderApp();
-  flash("Patient saved.");
-}
-
-function updateDispositionVisibility() {
-  const value = document.getElementById("fDisposition").value;
-
-  document
-    .getElementById("dischargedFields")
-    .classList.toggle("hidden", value !== "discharged");
-
-  document
-    .getElementById("admittedFields")
-    .classList.toggle("hidden", value !== "admitted");
-
-  document
-    .getElementById("otherFields")
-    .classList.toggle("hidden", value !== "other");
-}
-
-function renderRecommendations(patient) {
-  const recList = document.getElementById("recList");
-  recList.innerHTML = "";
-
-  const entries = patient.recommendations?.length
-    ? patient.recommendations
-    : [""];
-
-  entries.forEach((text, i) => {
-    const row = document.createElement("div");
-    row.className = "rec-row";
-
-    row.innerHTML = `
-      <div class="n">${i + 1}.</div>
-      <input data-rec value="${attr(text)}" />
-      <button type="button" class="btn small" data-del-rec="${i}">×</button>
-    `;
-
-    recList.appendChild(row);
-  });
-
-  recList.querySelectorAll("[data-del-rec]").forEach((btn) => {
-    btn.onclick = () => {
-      collectForm();
-
-      const patient = patientById(selectedPatientId);
-      patient.recommendations.splice(Number(btn.dataset.delRec), 1);
-
-      if (!patient.recommendations.length) patient.recommendations = [""];
-
+  modeButtons.forEach(btn=>{
+    btn.onclick=()=>{
+      e.mode=btn.dataset.modeChoice==="notordered"?"notordered":"waiting";
       persist();
-      renderRecommendations(patient);
+      refresh();
+      updateStatusCell();
+      renderSummaryStatus(patient());
     };
   });
-}
 
-function addRecommendation() {
-  collectForm();
+  txt.oninput=()=>{
+    e.text=txt.value;
+    persist();
+    refresh();
+    updateStatusCell();
+  };
 
-  const patient = patientById(selectedPatientId);
-  patient.recommendations.push("");
-
-  persist();
-  renderRecommendations(patient);
-}
-
-function buildMockSummary(patient) {
-  const out = [
-    `${patient.sex}, ${ageFromYob(patient.yob)} years, ${patient.mainComplaint}.`
-  ];
-
-  if (patient.complaint) out.push(patient.complaint.trim());
-  if (patient.history) out.push(`History: ${patient.history.trim()}`);
-  if (patient.physical) out.push(`Status: ${patient.physical.trim()}`);
-
-  patient.tests.labs.forEach((entry, i) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`Lab ${i + 1}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`Lab ${i + 1}: waiting for result.`);
+  txt.addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"&&!ev.shiftKey){
+      ev.preventDefault();
+      e.text=txt.value;
+      if(e.mode!=="notordered"&&e.text.trim())save.click();
     }
   });
 
-  [
-    ["EKG", patient.tests.ekg],
-    [/\bVVG\b/i.test(patient.tests.gas.text || "") ? "VVG" : "AVG", patient.tests.gas]
-  ].forEach(([label, entry]) => {
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
+  save.onclick=()=>{
+    if(!e.text.trim()||e.mode==="notordered")return;
+    e.savedText=e.text;
+    e.mode="waiting";
+    persist();
+    refresh();
+    updateStatusCell();
+    renderSummaryStatus(patient());
+    flash("Result saved — RESULT AVAILABLE.");
+  };
+}
+function renderTests(p){
+  labCards.innerHTML="";
+  p.tests.labs.forEach((e,i)=>{
+    labCards.appendChild(simpleCard(`Lab ${i+1}`,e,`lab-${i}`,false,()=>deleteTestEntry("labs",i)));
   });
+  addLabBtn.disabled=false;
 
-  patient.tests.radiology.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Radiology ${i + 1}`;
-    const status = entryStatus(entry);
+  ekgCard.innerHTML="";
+  ekgCard.appendChild(simpleCard("EKG",p.tests.ekg,"ekg"));
 
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
+  gasCard.innerHTML="";
+  gasCard.appendChild(simpleCard(/\bVVG\b/i.test(p.tests.gas.text||"")?"VVG":"AVG",p.tests.gas,"gas",true));
+
+  radiologyCards.innerHTML="";
+  p.tests.radiology.forEach((e,i)=>radiologyCards.appendChild(radiologyCard(e,i)));
+
+  consultCards.innerHTML="";
+  p.tests.consultations.forEach((e,i)=>{
+    consultCards.appendChild(dynamicCard(`Consultation ${i+1}`,e,`con-${i}`,"Type e.g. Cardiology, Neurology",()=>deleteTestEntry("consultations",i)));
   });
-
-  patient.tests.consultations.forEach((entry, i) => {
-    const label = entry.type?.trim() || `Consultation ${i + 1}`;
-    const status = entryStatus(entry);
-
-    if (status === "result") {
-      out.push(`${label}: ${entry.savedText.trim()}`);
-    } else if (status === "waiting") {
-      out.push(`${label}: waiting for result.`);
-    }
-  });
-
-  if (patient.therapy) out.push(`Therapy: ${patient.therapy.trim()}`);
-  if (patient.course) out.push(`Course: ${patient.course.trim()}`);
-
-  if (patient.disposition === "discharged") {
-    out.push("Final decision: discharged.");
-
-    const recs = (patient.recommendations || []).filter(Boolean);
-    if (recs.length) out.push("Plan: " + recs.join("; "));
-  } else if (patient.disposition === "admitted") {
-    let line = "Final decision: admitted/submitted";
-
-    if (patient.ward) line += ` to ${patient.ward}`;
-    if (patient.hospital) line += ` at ${patient.hospital}`;
-    if (patient.physician) line += ` under ${patient.physician}`;
-
-    out.push(line + ".");
-
-    if (patient.admissionNote) out.push(patient.admissionNote.trim());
-  } else if (patient.disposition === "other") {
-    out.push(`Final decision: ${patient.otherOutcome || "other"}.`);
-
-    if (patient.otherDetails) out.push(patient.otherDetails.trim());
-  }
-
-  return out.join("\n");
 }
 
-function generateSummary() {
-  const patient = collectForm();
-  if (!patient) return;
-
-  patient.summary = buildMockSummary(patient);
-  patient.summaryGeneratedAt = nowIso();
-
-  persist();
-
-  document.getElementById("fSummary").value = patient.summary;
-  renderSummaryStatus(patient);
-  flash("Summary generated (mock backend skill).");
+function addLab(){
+  const p=patient();
+  if(!p)return;
+  p.tests.labs.push(entry());
+  persist();renderTests(p);updateStatusCell();
+}
+function addRadiology(){
+  const p=patient();
+  if(!p)return;
+  p.tests.radiology.push(radiologyEntry());
+  persist();renderTests(p);updateStatusCell();
+}
+function addConsult(){
+  const p=patient();
+  if(!p)return;
+  p.tests.consultations.push(entry());
+  persist();renderTests(p);updateStatusCell();
+}
+function collect(){const p=patient();if(!p)return null;p.mainComplaint=fMainComplaint.value;p.complaint=fComplaint.value;p.history=fHistory.value;p.physical=fPhysical.value;p.others=fOthers.value;p.therapy=fTherapy.value;p.course=fCourse.value;p.diagnoses=fDiagnoses.value;p.disposition=fDisposition.value;p.hospital=fHospital.value;p.ward=fWard.value;p.physician=fPhysician.value;p.admissionNote=fAdmissionNote.value;p.otherOutcome=fOtherOutcome.value;p.otherDetails=fOtherDetails.value;p.summary=fSummary.value;p.recommendations=[...document.querySelectorAll("[data-rec]")].map(x=>x.value);p.updatedAt=nowIso();return p}
+function savePatient(){if(collect()){persist();renderApp();flash("Patient saved.")}}
+function dispositionUI(){const v=fDisposition.value;dischargedFields.classList.toggle("hidden",v!=="discharged");admittedFields.classList.toggle("hidden",v!=="admitted");otherFields.classList.toggle("hidden",v!=="other")}
+function renderRecs(p){recList.innerHTML="";(p.recommendations?.length?p.recommendations:[""]).forEach((x,i)=>{const r=document.createElement("div");r.className="rec-row";r.innerHTML=`<div>${i+1}.</div><input data-rec value="${attr(x)}"><button class="btn small" type="button" data-del="${i}">×</button>`;r.querySelector("[data-del]").onclick=()=>{collect();p.recommendations.splice(i,1);if(!p.recommendations.length)p.recommendations=[""];persist();renderRecs(p)};recList.appendChild(r)})}
+function addRec(){collect();const p=patient();p.recommendations.push("");persist();renderRecs(p)}
+function rebuildStyleProfile(){}
+function renderBackendPreview(){}
+function renderStyleMemory(){document.getElementById('styleMemoryStatus').textContent='Finalized references are stored on Google Drive for up to 15 days.';}
+function testPayload(e,label=""){
+  return{
+    label,
+    status:eStatus(e),
+    result:eStatus(e)==="result"?(e.savedText||"").trim():""
+  };
+}
+function buildSboAiPayload(p){
+  return{
+    patient:{
+      sex:p.sex,
+      age:age(p.yob),
+      mainComplaint:p.mainComplaint||"",
+      complaint:p.complaint||"",
+      history:p.history||"",
+      physical:p.physical||"",
+      diagnoses:String(p.diagnoses||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean),
+      tests:{
+        labs:(p.tests.labs||[]).map((e,i)=>testPayload(e,`Lab ${i+1}`)),
+        ekg:testPayload(p.tests.ekg,"EKG"),
+        gas:testPayload(p.tests.gas,/\bVVG\b/i.test(p.tests.gas?.text||"")?"VVG":"AVG"),
+        radiology:(p.tests.radiology||[]).map((e,i)=>({
+          ...testPayload(e,radiologyType(e)||`Radiology ${i+1}`),
+          bodyPart:e.bodyPart||"",
+          modality:e.modality||"",
+          specificTest:e.otherTest||""
+        })),
+        consultations:(p.tests.consultations||[]).map((e,i)=>({
+          ...testPayload(e,e.type?.trim()||`Consultation ${i+1}`),
+          specialty:e.type||""
+        }))
+      },
+      others:p.others||"",
+      therapy:p.therapy||"",
+      clinicalCourse:p.course||"",
+      disposition:p.disposition||"",
+      recommendations:(p.recommendations||[]).filter(x=>String(x).trim()),
+      admission:{
+        hospital:p.hospital||"",
+        ward:p.ward||"",
+        acceptingPhysician:p.physician||"",
+        note:p.admissionNote||""
+      },
+      otherOutcome:p.otherOutcome||"",
+      otherDetails:p.otherDetails||""
+    }
+  };
 }
 
-async function finalizeSummary() {
-  const patient = collectForm();
-  if (!patient) return;
-
-  const text = patient.summary.trim();
-
-  if (!text) {
-    alert("Summary is empty.");
+let apiBusy=false;
+let accessToken='';
+function apiBase(){
+  const u=new URL(loadAiConfig().backendUrl);
+  if(u.protocol!=='https:' && !(u.protocol==='http:' && ['localhost','127.0.0.1'].includes(u.hostname)))throw new Error('Use an HTTPS backend URL.');
+  if(u.username||u.password||u.search||u.hash)throw new Error('Invalid backend URL');
+  return u.origin;
+}
+async function api(path,method='GET',body){
+  accessToken=document.getElementById('accessToken')?.value||accessToken;
+  if(!accessToken)throw new Error('Enter your backend access token.');
+  const response=await fetch(apiBase()+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+accessToken},
+    body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(120000),cache:'no-store',redirect:'error'});
+  const data=await response.json();
+  if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'API request failed');
+  return data;
+}
+function payload(p){return {case_id:p.id,revision:p.serverRevision||0,patient:buildSboAiPayload(p).patient};}
+function acceptState(p,data){p.serverRevision=data.revision;p.referenceId=data.reference_id||data.pending_reference_id;p.caseStatus=data.state;p.closedAt=data.state==='closed'?(p.closedAt||nowIso()):null;}
+async function operation(task){
+  if(apiBusy)return;
+  collect();apiBusy=true;
+  const controls=[...document.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
+  controls.forEach(([el])=>el.disabled=true);
+  try{await task();}catch(e){setAiStatus(e.message,'error');alert(e.message);}
+  finally{apiBusy=false;controls.forEach(([el,disabled])=>el.disabled=disabled);persist();renderApp();}
+}
+async function generateSummary(){return operation(async()=>{
+  const p=collect();if(!p)return;
+  const fingerprint=clinicalFingerprint(p);
+  setAiStatus('Generating summary…');
+  const data=await api('/api/summary/generate','POST',payload(p));
+  acceptState(p,data);p.summary=data.summary;p.lastGeneratedSummary=data.summary;p.summaryGeneratedAt=nowIso();
+  p.generatedFingerprint=fingerprint;p.lastAiMeta=data.meta;
+  if(patient()?.id===p.id)fSummary.value=p.summary;
+  setAiStatus('Summary generated. Review before Finalize.','ok');
+});}
+async function finalizeSummary(){return operation(async()=>{
+  const p=collect();if(!p)return;
+  if(p.generatedFingerprint!==clinicalFingerprint(p))throw new Error('Clinical data changed. Generate again before Finalize.');
+  if(!confirm('I have reviewed this summary and removed identifying information from the text saved as a Google Drive reference.'))return;
+  const summary=p.summary.trim();const fingerprint=clinicalFingerprint(p);
+  const data=await api('/api/summary/finalize','POST',{...payload(p),summary,reference_reviewed:true});
+  acceptState(p,data);p.summaryFinalizedText=summary;p.summaryFinalizedAt=nowIso();p.summaryFinalizedClinicalFingerprint=fingerprint;
+  try{await navigator.clipboard.writeText(summary);}catch{}
+  flash('Finalized summary saved to Google Drive.');
+});}
+async function syncCaseState(){return operation(async()=>{
+  const p=collect();if(!p)return;
+  const data=await api('/api/cases/'+p.id);acceptState(p,data);
+  if(!data.reference_id){p.summaryFinalizedAt=null;p.summaryFinalizedText='';}
+  // A lost finalize response must not be mistaken for a verified local snapshot.
+  if(data.reference_id && !p.summaryFinalizedAt)throw new Error('Server has a finalized reference. Reopen if needed, then Undo Finalize before editing.');
+});}
+function clinicalFingerprint(p){
+  return JSON.stringify({
+    mainComplaint:p.mainComplaint||"",
+    complaint:p.complaint||"",
+    history:p.history||"",
+    physical:p.physical||"",
+    tests:p.tests||{},
+    others:p.others||"",
+    therapy:p.therapy||"",
+    course:p.course||"",
+    diagnoses:p.diagnoses||"",
+    disposition:p.disposition||"",
+    recommendations:p.recommendations||[],
+    hospital:p.hospital||"",
+    ward:p.ward||"",
+    physician:p.physician||"",
+    admissionNote:p.admissionNote||"",
+    otherOutcome:p.otherOutcome||"",
+    otherDetails:p.otherDetails||""
+  });
+}
+function clinicalChangedAfterFinalize(p){
+  return !!p.summaryFinalizedAt &&
+    !!p.summaryFinalizedClinicalFingerprint &&
+    clinicalFingerprint(p)!==p.summaryFinalizedClinicalFingerprint;
+}
+function summaryChangedAfterFinalize(p){
+  return !!p.summaryFinalizedAt&&(fSummary.value||"").trim()!==(p.summaryFinalizedText||"").trim();
+}
+async function undoFinalize(){return operation(async()=>{
+  const p=collect();if(!p)return;
+  if(!confirm('Delete this finalized Google Drive reference? The editable summary remains.'))return;
+  const data=await api('/api/summary/finalize/'+p.id+'?revision='+(p.serverRevision||0),'DELETE');
+  acceptState(p,data);p.summaryFinalizedText='';p.summaryFinalizedAt=null;p.summaryFinalizedClinicalFingerprint=null;
+  flash('Finalize undone. Google Drive reference deleted.');
+});}
+async function closeCase(){return operation(async()=>{
+  const p=collect();if(!p)return;
+  const data=await api('/api/cases/'+p.id+'/close','POST',{...payload(p),summary:p.summary});acceptState(p,data);
+});}
+async function reopenCase(){return operation(async()=>{
+  const p=patient();if(!p)return;
+  const data=await api('/api/cases/'+p.id+'/reopen','POST',payload(p));acceptState(p,data);
+});}
+function renderCaseActions(p){
+  const changed=summaryChangedAfterFinalize(p)||clinicalChangedAfterFinalize(p);
+  undoFinalizeBtn.classList.toggle("hidden",isClosed(p)||(!p.summaryFinalizedAt&&!p.referenceId));
+  closeCaseBtn.classList.toggle("hidden",isClosed(p)||!p.summaryFinalizedAt||changed);
+  reopenCaseBtn.classList.toggle("hidden",!isClosed(p));
+}
+function applyCaseLock(p){
+  const closed=isClosed(p);
+  if(closed){
+    patientForm.querySelectorAll("input,textarea,select,button").forEach(el=>{
+      if(["reopenCaseBtn","accessToken","aiBackendUrl","syncCaseBtn","testApiBtn"].includes(el.id)){el.disabled=false;return;}
+      el.disabled=true;
+    });
     return;
   }
 
-  patient.summaryFinalizedText = text;
-  patient.summaryFinalizedAt = nowIso();
-  patient.updatedAt = nowIso();
-
-  state.references.push({
-    id: crypto.randomUUID(),
-    patientId: patient.id,
-    shiftId: patient.shiftId,
-    text,
-    createdAt: nowIso(),
-    source: "finalized_summary"
+  patientForm.querySelectorAll("input,textarea,select,button").forEach(el=>{
+    if(!el.closest(".test-card"))el.disabled=false;
   });
 
-  persist();
-
-  try {
-    await navigator.clipboard.writeText(text);
-    flash("Summary finalized and copied to clipboard.");
-  } catch {
-    flash("Summary finalized. Clipboard unavailable.");
-  }
-
-  renderApp();
+  // Re-render test controls so Waiting / Not ordered / Result disabled
+  // states remain correct after a case is reopened.
+  renderTests(p);
 }
-
-function renderSummaryStatus(patient) {
-  const summaryStatus = document.getElementById("summaryStatus");
-  const summaryText = document.getElementById("fSummary").value || "";
-
-  if (!patient.summaryFinalizedAt) {
-    summaryStatus.innerHTML =
-      '<span class="badge active">NOT FINALIZED</span><span class="subtle">Patient vẫn IN PROGRESS.</span>';
+function renderSummaryStatus(p){
+  const t=fSummary.value||"";
+  if(isClosed(p)){
+    summaryStatus.innerHTML=`<span class="badge closed">CASE CLOSED</span> <span class="subtle">Closed ${fmtTime(p.closedAt)}. Reopen to edit.</span>`;
+    renderCaseActions(p);
     return;
   }
-
-  const changed =
-    summaryText.trim() !== patient.summaryFinalizedText.trim();
-
-  summaryStatus.innerHTML = changed
-    ? '<span class="badge active">EDITED AFTER FINALIZE</span><span class="subtle">Finalize lại để cập nhật reference.</span>'
-    : `<span class="badge done">FINALIZED</span><span class="subtle">Saved ${fmtTime(patient.summaryFinalizedAt)}</span>`;
+  if(!p.summaryFinalizedAt){
+    summaryStatus.innerHTML='<span class="badge active">NOT FINALIZED</span> <span class="subtle">Case is still ACTIVE / IN PROGRESS.</span>';
+    renderCaseActions(p);
+    return;
+  }
+  const changed=t.trim()!==p.summaryFinalizedText.trim();
+  const clinicalChanged=clinicalChangedAfterFinalize(p);
+  summaryStatus.innerHTML=clinicalChanged
+    ?'<span class="badge active">CLINICAL DATA CHANGED</span> <span class="subtle">Update/Generate Summary and Finalize again before Close Case.</span>'
+    :changed
+    ?'<span class="badge active">EDITED AFTER FINALIZE</span> <span class="subtle">Finalize again before Close Case.</span>'
+    :`<span class="badge done">FINALIZED</span> <span class="subtle">Saved ${fmtTime(p.summaryFinalizedAt)} • ready to Close Case.</span>`;
+  renderCaseActions(p);
 }
+function startShift(){if(state.shift)return;state.shift={id:crypto.randomUUID(),startedAt:nowIso(),status:"active"};selectedPatientId=null;persist();renderApp()}
+function modal(x){modalHost.innerHTML=`<div class="modal-wrap"><div class="modal">${x}</div></div>`;modalHost.querySelectorAll("[data-close]").forEach(x=>x.onclick=()=>modalHost.innerHTML="")}
+function endShiftStep1(){const p=pts(),a=p.filter(x=>!completed(x)).length;modal(`<h3>End current shift?</h3><p>Patients: <b>${p.length}</b><br>Still active: <b>${a}</b></p><div class="modal-actions"><button class="btn" data-close>CANCEL</button><button class="btn danger" id="endContinue">CONTINUE</button></div>`);endContinue.onclick=endShiftStep2}
+function endShiftStep2(){modal(`<h3>Confirm end shift</h3><p>Type <b>END</b> to confirm.</p><input id="endInput" placeholder="END"><div class="modal-actions"><button class="btn" data-close>CANCEL</button><button class="btn danger" id="endFinal" disabled>END SHIFT</button></div>`);endInput.oninput=()=>endFinal.disabled=endInput.value!=="END";endFinal.onclick=()=>{state=defaultState();selectedPatientId=null;persist();modalHost.innerHTML="";renderApp()}}
+function flash(msg){const e=document.createElement("div");e.textContent=msg;e.style.cssText="position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:11px 14px;border-radius:9px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.2)";document.body.appendChild(e);setTimeout(()=>e.remove(),1800)}
+langEnBtn.onclick=()=>applyLanguage("en");
+langHuBtn.onclick=()=>applyLanguage("hu");
+if(document.getElementById("testApiBtn"))document.getElementById("testApiBtn").onclick=testBackendApi;
+patientForm.addEventListener("submit",e=>e.preventDefault());
+startShiftBtn.onclick=startShift;
+addPatientBtn.onclick=addPatient;
+[newSex,newYob,newComplaint].forEach(el=>el.addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"&&newSex.value&&newYob.value.trim()&&newComplaint.value.trim()){
+    ev.preventDefault();
+    addPatient();
+  }
+}));
+newYob.addEventListener("blur",()=>{if(newYob.value.trim())newYob.value=normalizeYob(newYob.value)});
+document.getElementById('accessToken').oninput=e=>accessToken=e.target.value;document.getElementById('syncCaseBtn').onclick=syncCaseState;savePatientBtn.onclick=savePatient;fDisposition.onchange=dispositionUI;addRecBtn.onclick=addRec;addLabBtn.onclick=addLab;addRadiologyBtn.onclick=addRadiology;addConsultBtn.onclick=addConsult;generateSummaryBtn.onclick=generateSummary;finalizeSummaryBtn.onclick=finalizeSummary;undoFinalizeBtn.onclick=undoFinalize;closeCaseBtn.onclick=closeCase;reopenCaseBtn.onclick=reopenCase;fSummary.oninput=()=>patient()&&renderSummaryStatus(patient());renderApp();
+applyLanguage(uiLang);
 
-function startShift() {
-  if (state.shift) return;
-
-  state.shift = {
-    id: crypto.randomUUID(),
-    startedAt: nowIso(),
-    status: "active"
-  };
-
-  selectedPatientId = null;
-
-  persist();
-  renderApp();
-}
-
-function endShiftStep1() {
-  const pts = activeShiftPatients();
-  const active = pts.filter((p) => !isCompleted(p)).length;
-
-  modal(`
-    <h3>End current shift?</h3>
-    <p>Patients: <b>${pts.length}</b><br>Still active / in progress: <b>${active}</b></p>
-    <p>This will close the current workspace.</p>
-    <div class="modal-actions">
-      <button class="btn" data-close>CANCEL</button>
-      <button class="btn danger" id="endContinue">CONTINUE</button>
-    </div>
-  `);
-
-  document.getElementById("endContinue").onclick = endShiftStep2;
-}
-
-function endShiftStep2() {
-  modal(`
-    <h3>Confirm end shift</h3>
-    <p>Type <b>END</b> to confirm.</p>
-    <input id="endInput" autocomplete="off" placeholder="END" />
-    <div class="modal-actions">
-      <button class="btn" data-close>CANCEL</button>
-      <button class="btn danger" id="endFinal" disabled>END SHIFT</button>
-    </div>
-  `);
-
-  const input = document.getElementById("endInput");
-  const endFinal = document.getElementById("endFinal");
-
-  input.oninput = () => {
-    endFinal.disabled = input.value !== "END";
-  };
-
-  endFinal.onclick = () => {
-    state.shift = null;
-    selectedPatientId = null;
-
-    persist();
-    closeModal();
-    renderApp();
-  };
-}
-
-function modal(inner) {
-  const host = document.getElementById("modalHost");
-
-  host.innerHTML =
-    `<div class="modal-wrap"><div class="modal">${inner}</div></div>`;
-
-  document.querySelectorAll("[data-close]").forEach((x) => {
-    x.onclick = closeModal;
-  });
-}
-
-function closeModal() {
-  document.getElementById("modalHost").innerHTML = "";
-}
-
-function flash(message) {
-  const el = document.createElement("div");
-
-  el.textContent = message;
-  el.style.cssText =
-    "position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:11px 14px;border-radius:9px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.2)";
-
-  document.body.appendChild(el);
-
-  setTimeout(() => el.remove(), 1800);
-}
-
-function esc(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  })[c]);
-}
-
-function attr(value) {
-  return esc(value).replace(/`/g, "&#096;");
-}
-
-document.getElementById("startShiftBtn").onclick = startShift;
-document.getElementById("addPatientBtn").onclick = addPatient;
-document.getElementById("savePatientBtn").onclick = savePatient;
-document.getElementById("fDisposition").onchange = updateDispositionVisibility;
-document.getElementById("addRecBtn").onclick = addRecommendation;
-document.getElementById("addLabBtn").onclick = addLab;
-document.getElementById("addRadiologyBtn").onclick = addRadiology;
-document.getElementById("addConsultBtn").onclick = addConsult;
-document.getElementById("generateSummaryBtn").onclick = generateSummary;
-document.getElementById("finalizeSummaryBtn").onclick = finalizeSummary;
-
-document.getElementById("fSummary").addEventListener("input", () => {
-  const patient = patientById(selectedPatientId);
-  if (patient) renderSummaryStatus(patient);
-});
-
-renderApp();
+setInterval(()=>{if(!apiBusy){collect();const count=state.patients.length;persist();if(state.patients.length!==count)renderApp();}},60000);

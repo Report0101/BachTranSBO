@@ -1,3 +1,5 @@
+> Historical prototype specification. For the implemented v5/backend scope, storage limits and deployment instructions, see [README](../README.md) and [DEPLOYMENT](DEPLOYMENT.md). Planned cross-device shift restoration is not implemented.
+
 # ER Command Center - Project Specification
 
 ## 1. Product goal

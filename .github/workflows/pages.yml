@@ -29,10 +29,15 @@ jobs:
         with:
           enablement: true
 
+      - name: Prepare public frontend only
+        run: |
+          mkdir public
+          cp index.html styles.css app.js config.js .nojekyll public/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: 'public'
 
       - name: Deploy to GitHub Pages
         id: deployment
