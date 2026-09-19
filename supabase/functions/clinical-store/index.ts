@@ -429,6 +429,115 @@ async function savePatient(
   };
 }
 
+async function finalizePatient(
+  db: any,
+  ownerId: string,
+  shiftId: string,
+  patientInput: any,
+) {
+  const { patient, report } = await deidentifyPatient(patientInput);
+
+  if (!shiftId || patient?.shiftId !== shiftId) {
+    throw new Error("Patient/shift mismatch.");
+  }
+  if (!patient?.summaryFinalizedAt || !patient?.summaryFinalizedText) {
+    throw new Error("Finalized summary is required.");
+  }
+
+  const now = new Date().toISOString();
+  const snapshot = corpusSnapshot(patient);
+  const caseRow = {
+    id: patient.id,
+    shift_id: shiftId,
+    owner_id: ownerId,
+    local_id: patient.localId,
+    sex: patient.sex || null,
+    year_of_birth: patient.yob ? Number(patient.yob) : null,
+    main_complaint: patient.mainComplaint || "",
+    complaint: patient.complaint || "",
+    history: patient.history || "",
+    physical_exam: patient.physical || "",
+    diagnoses: patient.diagnoses || "",
+    others: patient.others || "",
+    therapy: patient.therapy || "",
+    clinical_course: patient.course || "",
+    disposition: patient.disposition || "",
+    recommendations: patient.recommendations || [""],
+    hospital: patient.hospital || "",
+    ward: patient.ward || "",
+    accepting_physician: patient.physician || "",
+    admission_note: patient.admissionNote || "",
+    other_outcome: patient.otherOutcome || "",
+    other_details: patient.otherDetails || "",
+    status: "completed",
+    completed_at: patient.summaryFinalizedAt,
+    created_at: patient.createdAt || now,
+    updated_at: patient.updatedAt || now,
+    deidentified_at: now,
+    deidentification_version: "v1",
+  };
+
+  const summaryRow = {
+    case_id: patient.id,
+    owner_id: ownerId,
+    generated_text: patient.summaryGeneratedText || patient.summary || "",
+    working_text: patient.summary || "",
+    finalized_text: patient.summaryFinalizedText,
+    generated_at: patient.summaryGeneratedAt || null,
+    finalized_at: patient.summaryFinalizedAt,
+    updated_at: now,
+  };
+
+  const revisionPayload = {
+    generated_text: patient.summaryGeneratedText || patient.summary || "",
+    finalized_text: patient.summaryFinalizedText,
+    finalized_at: patient.summaryFinalizedAt,
+    deidentification_version: "v1",
+    case_snapshot: snapshot,
+  };
+
+  const { data: revisionId, error } = await db.rpc("finalize_case_atomic", {
+    p_owner_id: ownerId,
+    p_case: caseRow,
+    p_tests: flattenTests(patient, ownerId),
+    p_summary: summaryRow,
+    p_revision: revisionPayload,
+  });
+
+  if (error) throw error;
+  if (!revisionId) throw new Error("Atomic finalization returned no revision ID.");
+
+  let embeddingWarning: string | null = null;
+  try {
+    const embedded = await createEmbedding(JSON.stringify(snapshot));
+    const { error: embeddingError } = await db
+      .from("summary_revisions")
+      .update({
+        embedding: embedded.embedding,
+        embedding_model: embedded.model,
+        embedding_created_at: new Date().toISOString(),
+      })
+      .eq("id", revisionId)
+      .eq("owner_id", ownerId);
+
+    if (embeddingError) throw embeddingError;
+  } catch (embeddingError) {
+    embeddingWarning = embeddingError instanceof Error
+      ? embeddingError.message
+      : "Embedding generation failed.";
+    console.error(embeddingError);
+  }
+
+  return {
+    patient,
+    report,
+    removed: reportTotal(report),
+    revisionId,
+    embedded: !embeddingWarning,
+    embeddingWarning,
+  };
+}
+
 async function appendRevision(db: any, ownerId: string, patientInput: any) {
   const { patient, report } = await deidentifyPatient(patientInput);
 
@@ -524,6 +633,17 @@ Deno.serve(async (req) => {
     if (body?.action === "save_patient") {
       return json(
         await savePatient(db, user.id, String(body.shiftId || ""), body.patient),
+      );
+    }
+
+    if (body?.action === "finalize_patient") {
+      return json(
+        await finalizePatient(
+          db,
+          user.id,
+          String(body.shiftId || ""),
+          body.patient,
+        ),
       );
     }
 
