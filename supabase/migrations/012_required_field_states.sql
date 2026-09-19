@@ -311,3 +311,60 @@ grant execute on function public.finalize_case_atomic(
   jsonb
 ) to service_role;
 
+
+
+-- Reopen a completed case atomically while keeping immutable finalized
+-- revisions untouched for audit/learning history.
+create or replace function public.reopen_case_atomic(
+  p_owner_id uuid,
+  p_shift_id uuid,
+  p_case_id uuid
+)
+returns timestamptz
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_now timestamptz := now();
+begin
+  if not exists (
+    select 1
+    from public.cases c
+    where c.id = p_case_id
+      and c.shift_id = p_shift_id
+      and c.owner_id = p_owner_id
+      and c.status = 'completed'
+  ) then
+    raise exception 'Completed case does not belong to the active shift.';
+  end if;
+
+  update public.cases
+  set status = 'active',
+      completed_at = null,
+      updated_at = v_now
+  where id = p_case_id
+    and shift_id = p_shift_id
+    and owner_id = p_owner_id;
+
+  update public.summaries
+  set finalized_at = null,
+      updated_at = v_now
+  where case_id = p_case_id
+    and owner_id = p_owner_id;
+
+  return v_now;
+end;
+$$;
+
+revoke all on function public.reopen_case_atomic(
+  uuid,
+  uuid,
+  uuid
+) from public, anon, authenticated;
+
+grant execute on function public.reopen_case_atomic(
+  uuid,
+  uuid,
+  uuid
+) to service_role;
