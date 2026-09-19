@@ -17,19 +17,20 @@ See `docs/BACKEND_SETUP.md` for setup.
 ## Current workflow
 
 - One active shift at a time, enforced in the database.
-- Patient IDs restart from `01` for every shift.
-- Clinical free-text entry for complaint, history, examination, therapy, and course.
+- Case IDs restart from `01` for every shift.
+- Complaint, medical history, physical examination, therapy, and clinical course are required workflow fields: text turns them green; an explicit **None** state turns them grey; unresolved fields stay orange and block summary generation/finalization.
 - Test/result workflow:
   - Lab 1-3.
   - EKG.
   - AVG / VVG.
-  - Structured Radiology: body part + modality (RTG / ultrahang / CT / MR / Other).
+  - Structured imaging: body part + modality (RTG / US / Native CT / Contrast CT / MR / Other).
   - Consultations.
   - Preview-v5 status dots, Enter-to-save results, and removable extra test cards.
   - Waiting for result / Result available / Not ordered states.
 - Doctor-entered diagnoses (never inferred from test results by the UI).
 - Final disposition.
 - Editable case summary.
+- Completed cases are read-only and move to the end of the active-shift list; **Reopen Case** returns them to active editing while keeping previous finalized revisions immutable.
 - Finalize Summary:
   - stores the finalized text,
   - marks the case completed,
@@ -104,7 +105,7 @@ Never place a Supabase secret/service-role key in browser code.
 
 ## AI Learning dashboard
 
-The sidebar now includes **AI Learning**. It shows finalized corpus size, active Skill version, active/candidate style profiles, and Skill suggestions. Style candidates can be explicitly activated; Skill suggestions can be accepted/rejected for follow-up, but never modify the master Skill automatically.
+The top workspace navigation includes **AI Learning**. It shows finalized corpus size, active Skill version, active/candidate style profiles, and Skill suggestions. Style candidates can be explicitly activated; Skill suggestions can be accepted/rejected for follow-up, but never modify the master Skill automatically.
 
 ## Next milestones
 
