@@ -375,41 +375,11 @@
   }
 
   async function getLearningOverview() {
-    const db = requireClient();
-
-    const [
-      revisionsResult,
-      skillResult,
-      profilesResult,
-      suggestionsResult
-    ] = await Promise.all([
-      db.from("summary_revisions")
-        .select("id", { count: "exact", head: true }),
-      db.from("skill_versions")
-        .select("id, version, name, is_active, created_at")
-        .eq("is_active", true)
-        .maybeSingle(),
-      db.from("style_profiles")
-        .select("id, version, profile_text, is_active, source_revision_count, model, generated_at, created_at")
-        .order("version", { ascending: false })
-        .limit(10),
-      db.from("skill_suggestions")
-        .select("id, base_skill_version, source_revision_count, suggestion_text, status, model, generated_at, reviewed_at")
-        .order("generated_at", { ascending: false })
-        .limit(10)
-    ]);
-
-    assertOk(revisionsResult.error, "Load finalized corpus count");
-    assertOk(skillResult.error, "Load active Skill");
-    assertOk(profilesResult.error, "Load style profiles");
-    assertOk(suggestionsResult.error, "Load Skill suggestions");
-
-    return {
-      finalizedCount: revisionsResult.count || 0,
-      activeSkill: skillResult.data || null,
-      styleProfiles: profilesResult.data || [],
-      skillSuggestions: suggestionsResult.data || []
-    };
+    return invokeAuthedFunction(
+      "learning-admin",
+      { action: "overview" },
+      "AI Learning overview"
+    );
   }
 
   async function analyzeStyle() {
