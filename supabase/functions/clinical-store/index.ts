@@ -394,7 +394,7 @@ async function savePatient(
   const { patient, report } = await deidentifyPatient(patientInput);
 
   if (!shiftId || patient?.shiftId !== shiftId) {
-    throw new Error("Patient/shift mismatch.");
+    throw new Error("Case/shift mismatch.");
   }
 
   const { data: shift, error: shiftError } = await db
@@ -492,7 +492,7 @@ async function finalizePatient(
   const { patient, report } = await deidentifyPatient(patientInput);
 
   if (!shiftId || patient?.shiftId !== shiftId) {
-    throw new Error("Patient/shift mismatch.");
+    throw new Error("Case/shift mismatch.");
   }
   if (!patient?.summaryFinalizedAt || !patient?.summaryFinalizedText) {
     throw new Error("Finalized summary is required.");
