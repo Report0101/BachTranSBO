@@ -295,142 +295,51 @@
     };
   }
 
-  function flattenTests(patient, ownerId) {
-    const rows = [];
+  async function invokeClinicalStore(body) {
+    const session = await getSession();
+    if (!session?.access_token) throw new Error("Not authenticated.");
 
-    function add(entry, category, sequence) {
-      if (!entry.id) entry.id = crypto.randomUUID();
-      rows.push({
-        id: entry.id,
-        case_id: patient.id,
-        owner_id: ownerId,
-        category,
-        sequence,
-        subtype: entry.type || "",
-        mode: entry.mode || "waiting",
-        result_text: entry.text || "",
-        saved_result_text: entry.savedText || "",
-        updated_at: new Date().toISOString()
-      });
+    const { data, error } = await requireClient().functions.invoke(
+      "clinical-store",
+      {
+        body,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      }
+    );
+
+    if (error) {
+      throw new Error(
+        `Clinical privacy service failed: ${error.message || "Unknown error"}`
+      );
     }
 
-    (patient.tests?.labs || []).forEach((x, i) => add(x, "lab", i + 1));
-    add(patient.tests?.ekg || blankEntry(), "ekg", 1);
-    add(patient.tests?.gas || blankEntry(), "gas", 1);
-    (patient.tests?.radiology || []).forEach((x, i) =>
-      add(x, "radiology", i + 1)
-    );
-    (patient.tests?.consultations || []).forEach((x, i) =>
-      add(x, "consultation", i + 1)
-    );
+    if (data?.error) {
+      throw new Error(data.error);
+    }
 
-    return rows;
+    return data;
   }
 
   async function saveState(state) {
-    if (!state?.shift) return;
+    if (!state?.shift) return { removed: 0, report: null };
 
-    const db = requireClient();
-    const user = await getUser();
-    const now = new Date().toISOString();
-
-    const { error: shiftError } = await db.from("shifts").upsert({
-      id: state.shift.id,
-      owner_id: user.id,
-      started_at: state.shift.startedAt,
-      status: state.shift.status || "active"
+    return invokeClinicalStore({
+      action: "save_state",
+      state
     });
-    assertOk(shiftError, "Save shift");
-
-    const patients = (state.patients || []).filter(
-      (p) => p.shiftId === state.shift.id
-    );
-
-    if (!patients.length) return;
-
-    const caseRows = patients.map((p) => ({
-      id: p.id,
-      shift_id: p.shiftId,
-      owner_id: user.id,
-      local_id: p.localId,
-      sex: p.sex || null,
-      year_of_birth: p.yob ? Number(p.yob) : null,
-      main_complaint: p.mainComplaint || "",
-      complaint: p.complaint || "",
-      history: p.history || "",
-      physical_exam: p.physical || "",
-      others: p.others || "",
-      therapy: p.therapy || "",
-      clinical_course: p.course || "",
-      disposition: p.disposition || "",
-      recommendations: p.recommendations || [""],
-      hospital: p.hospital || "",
-      ward: p.ward || "",
-      accepting_physician: p.physician || "",
-      admission_note: p.admissionNote || "",
-      other_outcome: p.otherOutcome || "",
-      other_details: p.otherDetails || "",
-      status: p.summaryFinalizedAt ? "completed" : "active",
-      completed_at: p.summaryFinalizedAt || null,
-      created_at: p.createdAt || now,
-      updated_at: p.updatedAt || now
-    }));
-
-    const { error: caseError } = await db
-      .from("cases")
-      .upsert(caseRows, { onConflict: "id" });
-    assertOk(caseError, "Save cases");
-
-    const testRows = patients.flatMap((p) => flattenTests(p, user.id));
-    if (testRows.length) {
-      const { error: testError } = await db
-        .from("test_entries")
-        .upsert(testRows, { onConflict: "id" });
-      assertOk(testError, "Save test entries");
-    }
-
-    const summaryRows = patients
-      .filter(
-        (p) =>
-          p.summary ||
-          p.summaryGeneratedAt ||
-          p.summaryFinalizedAt ||
-          p.summaryFinalizedText
-      )
-      .map((p) => ({
-        case_id: p.id,
-        owner_id: user.id,
-        generated_text: p.summaryGeneratedText || p.summary || "",
-        working_text: p.summary || "",
-        finalized_text: p.summaryFinalizedText || "",
-        generated_at: p.summaryGeneratedAt || null,
-        finalized_at: p.summaryFinalizedAt || null,
-        updated_at: now
-      }));
-
-    if (summaryRows.length) {
-      const { error: summaryError } = await db
-        .from("summaries")
-        .upsert(summaryRows, { onConflict: "case_id" });
-      assertOk(summaryError, "Save summaries");
-    }
   }
 
   async function appendSummaryRevision(patient) {
-    if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) return;
+    if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
+      return { removed: 0, report: null };
+    }
 
-    const db = requireClient();
-    const user = await getUser();
-
-    const { error } = await db.from("summary_revisions").insert({
-      case_id: patient.id,
-      owner_id: user.id,
-      generated_text: patient.summaryGeneratedText || patient.summary || "",
-      finalized_text: patient.summaryFinalizedText,
-      finalized_at: patient.summaryFinalizedAt
+    return invokeClinicalStore({
+      action: "append_revision",
+      patient
     });
-
-    assertOk(error, "Save finalized summary revision");
   }
 
   window.BachSBOBackend = {
