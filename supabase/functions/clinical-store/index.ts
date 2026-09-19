@@ -612,48 +612,18 @@ async function reopenCase(
 ) {
   if (!shiftId || !caseId) throw new Error("Case reopen payload is incomplete.");
 
-  const { data: existing, error: caseError } = await db
-    .from("cases")
-    .select("id, shift_id, status")
-    .eq("id", caseId)
-    .eq("shift_id", shiftId)
-    .eq("owner_id", ownerId)
-    .maybeSingle();
+  const { data: reopenedAt, error } = await db.rpc("reopen_case_atomic", {
+    p_owner_id: ownerId,
+    p_shift_id: shiftId,
+    p_case_id: caseId,
+  });
 
-  if (caseError) throw caseError;
-  if (!existing) throw new Error("Case does not belong to the active shift.");
-  if (existing.status !== "completed") {
-    throw new Error("Only a completed case can be reopened.");
-  }
-
-  const now = new Date().toISOString();
-
-  const { error: reopenError } = await db
-    .from("cases")
-    .update({
-      status: "active",
-      completed_at: null,
-      updated_at: now,
-    })
-    .eq("id", caseId)
-    .eq("owner_id", ownerId);
-
-  if (reopenError) throw reopenError;
-
-  const { error: summaryError } = await db
-    .from("summaries")
-    .update({
-      finalized_at: null,
-      updated_at: now,
-    })
-    .eq("case_id", caseId)
-    .eq("owner_id", ownerId);
-
-  if (summaryError) throw summaryError;
+  if (error) throw error;
+  if (!reopenedAt) throw new Error("Atomic case reopen returned no timestamp.");
 
   return {
     caseId,
-    reopenedAt: now,
+    reopenedAt,
   };
 }
 
