@@ -42,11 +42,25 @@ window.BACH_SBO_CONFIG = {
     return String(YEAR - y);
   }
 
+  function localIdNumber(value) {
+    const match = String(value || "").match(/\d+/);
+    const n = match ? Number(match[0]) : 0;
+    return Number.isFinite(n) ? n : 0;
+  }
+
   function normalizeSex(value) {
     const raw = String(value || "").trim().toLowerCase();
-    if (["f", "female", "woman", "nő", "no", "w"].includes(raw)) return "Female";
-    if (["m", "male", "man", "férfi", "ferfi"].includes(raw)) return "Male";
+    if (["f", "female", "woman", "nő", "no", "nőbeteg", "w"].includes(raw)) return "Female";
+    if (["m", "male", "man", "férfi", "ferfi", "férfibeteg"].includes(raw)) return "Male";
     if (["o", "other", "egyéb", "egyeb", "x", "nonbinary", "non-binary"].includes(raw)) return "Other";
+    return "";
+  }
+
+  function sexLabel(value) {
+    const normalized = normalizeSex(value);
+    if (normalized === "Female") return label("Female", "Nő");
+    if (normalized === "Male") return label("Male", "Férfi");
+    if (normalized === "Other") return label("Other", "Egyéb");
     return "";
   }
 
@@ -58,14 +72,15 @@ window.BACH_SBO_CONFIG = {
     const normalized = normalizeSex(value);
     if (!normalized) return "";
     const c = sexStyle(normalized);
-    return `<span data-sex-badge="${normalized}" style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c.border};background:${c.background};color:${c.color};border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap">${normalized}</span>`;
+    const text = sexLabel(normalized);
+    return `<span data-sex-badge="${normalized}" style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c.border};background:${c.background};color:${c.color};border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap">${text}</span>`;
   }
 
   function sexOptionsHtml(current) {
     const normalized = normalizeSex(current);
     return [""].concat(SEX_VALUES).map((value) => {
       const selected = value === normalized ? " selected" : "";
-      const text = value || "—";
+      const text = value ? sexLabel(value) : "—";
       return `<option value="${value}"${selected}>${text}</option>`;
     }).join("");
   }
@@ -77,7 +92,8 @@ window.BACH_SBO_CONFIG = {
       select.dataset.sexEnhanced = "true";
       select.innerHTML = sexOptionsHtml(normalized);
       select.addEventListener("change", () => paintSexSelect(select));
-    } else if (select.value !== normalized) {
+    } else {
+      select.innerHTML = sexOptionsHtml(normalized);
       select.value = normalized;
     }
     const c = sexStyle(normalized);
@@ -85,6 +101,52 @@ window.BACH_SBO_CONFIG = {
     select.style.background = c?.background || "";
     select.style.color = c?.color || "";
     select.style.fontWeight = normalized ? "700" : "";
+  }
+
+  function visibleTableLocalIds(excludeCaseId = "") {
+    const ids = [];
+    document.querySelectorAll("tr[data-id]").forEach((row) => {
+      if (excludeCaseId && row.dataset.id === excludeCaseId) return;
+      const n = localIdNumber(row.querySelector("td")?.textContent || "");
+      if (n > 0) ids.push(n);
+    });
+    return ids;
+  }
+
+  function nextVisibleLocalId(excludeCaseId = "") {
+    const nums = visibleTableLocalIds(excludeCaseId);
+    const next = Math.max(0, ...nums) + 1;
+    return String(next).padStart(2, "0");
+  }
+
+  function updateNextLocalIdHint() {
+    const input = document.getElementById("newId");
+    if (!input) return;
+    const next = nextVisibleLocalId("");
+    if (next !== "01") input.value = next;
+  }
+
+  function repairPatientLocalId(patient) {
+    if (!patient) return patient;
+    const current = String(patient.localId || "").padStart(2, "0");
+    const otherIds = visibleTableLocalIds(patient.id).map((n) => String(n).padStart(2, "0"));
+    if (!current || otherIds.includes(current)) {
+      patient.localId = nextVisibleLocalId(patient.id);
+      patient.updatedAt = new Date().toISOString();
+      const row = selectedRow();
+      const idCell = row?.querySelector("td");
+      if (idCell) idCell.textContent = patient.localId;
+      const title = document.getElementById("recordTitle");
+      if (title) title.textContent = `${label("Case", "Eset")} ${patient.localId}`;
+      setStatus(
+        `Duplicate case ID repaired to ${patient.localId}.`,
+        `Ismétlődő esetazonosító javítva: ${patient.localId}.`,
+        false
+      );
+    } else {
+      patient.localId = current;
+    }
+    return patient;
   }
 
   function enhanceSexUi() {
@@ -100,10 +162,10 @@ window.BACH_SBO_CONFIG = {
     document.querySelectorAll("tr[data-id] td:nth-child(2)").forEach((cell) => {
       const text = cell.textContent || "";
       const normalized = normalizeSex(text);
-      if (normalized && !cell.querySelector("[data-sex-badge]")) {
-        cell.innerHTML = sexBadge(normalized);
-      }
+      if (normalized) cell.innerHTML = sexBadge(normalized);
     });
+
+    updateNextLocalIdHint();
   }
 
   function setStatus(en, hu, isError = false) {
@@ -287,7 +349,7 @@ window.BACH_SBO_CONFIG = {
 
     const subtitle = document.getElementById("recordSubtitle");
     if (subtitle) {
-      subtitle.textContent = `${sex || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
+      subtitle.textContent = `${sexLabel(sex) || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
     }
   }
 
@@ -315,6 +377,8 @@ window.BACH_SBO_CONFIG = {
   function mergeInlineDetailsIntoPatient(patient) {
     if (!patient || patient.id !== selectedId()) return patient;
     if (!ensureUi()) return patient;
+
+    repairPatientLocalId(patient);
 
     const { payload, partialYob } = buildPayload();
     if (partialYob) {
