@@ -343,8 +343,19 @@
     );
 
     if (error) {
+      let serverMessage = "";
+      try {
+        const response = error.context;
+        if (response && typeof response.clone === "function") {
+          const payload = await response.clone().json();
+          serverMessage = String(payload?.error || payload?.message || "");
+        }
+      } catch {
+        // Fall back to the SDK-level error message below.
+      }
+
       throw new Error(
-        `${label} failed: ${error.message || "Unknown error"}`
+        `${label} failed: ${serverMessage || error.message || "Unknown error"}`
       );
     }
 
