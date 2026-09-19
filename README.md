@@ -48,7 +48,7 @@ AI generated draft
 doctor finalized summary
 ```
 
-This allows future retrieval/style learning to compare what the model generated with what the doctor actually approved.
+This allows retrieval/style learning to compare what the model generated with what the doctor actually approved. Finalized revisions store a de-identified case snapshot plus an embedding; Generate Summary retrieves similar approved cases as few-shot examples.
 
 ## Privacy model
 
@@ -91,10 +91,10 @@ docs/
 ## Backend setup
 
 1. Create a Supabase project.
-2. Apply migrations `001_backend_v1.sql`, `002_privacy_hardening.sql`, and `003_ai_summary.sql` in order.
+2. Apply migrations `001_backend_v1.sql`, `002_privacy_hardening.sql`, `003_ai_summary.sql`, and `004_similar_case_retrieval.sql` in order.
 3. Put the project URL and **publishable key** in `config.js`.
 4. Configure Auth and the GitHub Pages redirect URL.
-5. Set `OPENAI_API_KEY`, `DEID_MODEL`, and `SUMMARY_MODEL` as Supabase secrets.
+5. Set `OPENAI_API_KEY`, `DEID_MODEL`, `SUMMARY_MODEL`, and `EMBEDDING_MODEL` as Supabase secrets.
 6. Deploy `clinical-store` and `generate-summary`.
 7. Insert the exact approved SBO Documentation Skill text as active Skill version 1.
 
@@ -102,7 +102,6 @@ Never place a Supabase secret/service-role key in browser code.
 
 ## Next milestones
 
-1. Similar-case retrieval with embeddings/pgvector.
-2. Automatic writing-style profile generation from finalized revisions.
-3. AI learning dashboard and Skill-change suggestions.
-4. End-to-end deployment/testing against the real Supabase project.
+1. Automatic writing-style profile generation from finalized revisions.
+2. AI learning dashboard and Skill-change suggestions.
+3. End-to-end deployment/testing against the real Supabase project.
