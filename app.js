@@ -3,6 +3,7 @@ let selectedPatientId = null;
 let backendReady = false;
 let currentUser = null;
 let stateDirty = false;
+let currentView = "patients";
 
 function defaultState() {
   return { shift: null, patients: [], references: [] };
@@ -153,10 +154,30 @@ function renderHeader() {
 function renderApp() {
   renderHeader();
 
+  const learning = currentView === "learning";
+  document.getElementById("patientsNav").classList.toggle("active", !learning);
+  document.getElementById("aiLearningNav").classList.toggle("active", learning);
+  document.getElementById("aiLearningView").classList.toggle("hidden", !learning);
+
+  if (learning) {
+    document.getElementById("noShiftView").classList.add("hidden");
+    document.getElementById("patientsView").classList.add("hidden");
+    return;
+  }
+
   document.getElementById("noShiftView").classList.toggle("hidden", Boolean(state.shift));
   document.getElementById("patientsView").classList.toggle("hidden", !state.shift);
 
   if (state.shift) renderPatients();
+}
+
+function setView(view) {
+  currentView = view;
+  renderApp();
+
+  if (view === "learning") {
+    renderLearningDashboard().catch(handleBackendError);
+  }
 }
 
 function renderPatients() {
@@ -834,6 +855,192 @@ function closeModal() {
   document.getElementById("modalHost").innerHTML = "";
 }
 
+function learningMessage(message, isError = false) {
+  const el = document.getElementById("learningMessage");
+  if (!message) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+
+  el.textContent = message;
+  el.classList.remove("hidden");
+  el.style.borderColor = isError ? "#fecaca" : "";
+  el.style.background = isError ? "#fef2f2" : "";
+  el.style.color = isError ? "#991b1b" : "";
+}
+
+function renderStyleProfiles(profiles) {
+  const host = document.getElementById("styleProfilesList");
+  if (!profiles.length) {
+    host.innerHTML =
+      '<div class="subtle">No style profile yet. Finalize at least 5 cases, then generate a candidate.</div>';
+    return;
+  }
+
+  host.innerHTML = profiles.map((profile) => `
+    <div class="learning-item">
+      <div class="learning-item-head">
+        <b>Style v${esc(profile.version)}</b>
+        <span class="badge ${profile.is_active ? "done" : "pending"}">
+          ${profile.is_active ? "ACTIVE" : "CANDIDATE"}
+        </span>
+      </div>
+      <div class="subtle">
+        ${profile.source_revision_count || 0} finalized pairs
+        ${profile.model ? ` • ${esc(profile.model)}` : ""}
+      </div>
+      <div class="learning-text">${esc(profile.profile_text || "")}</div>
+      ${
+        profile.is_active
+          ? ""
+          : `<div class="learning-actions">
+              <button class="btn success small" data-activate-style="${profile.id}">
+                ACTIVATE
+              </button>
+            </div>`
+      }
+    </div>
+  `).join("");
+
+  host.querySelectorAll("[data-activate-style]").forEach((button) => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await window.BachSBOBackend.activateStyle(
+          button.dataset.activateStyle
+        );
+        learningMessage("Writing style activated.");
+        await renderLearningDashboard();
+      } catch (error) {
+        learningMessage(error?.message || "Style activation failed.", true);
+      } finally {
+        button.disabled = false;
+      }
+    };
+  });
+}
+
+function renderSkillSuggestions(suggestions) {
+  const host = document.getElementById("skillSuggestionsList");
+  if (!suggestions.length) {
+    host.innerHTML =
+      '<div class="subtle">No Skill suggestions yet. At least 10 Generated → Finalized pairs are required.</div>';
+    return;
+  }
+
+  host.innerHTML = suggestions.map((item) => `
+    <div class="learning-item">
+      <div class="learning-item-head">
+        <b>Based on Skill v${esc(item.base_skill_version)}</b>
+        <span class="badge ${esc(item.status)}">${esc(String(item.status).toUpperCase())}</span>
+      </div>
+      <div class="subtle">
+        ${item.source_revision_count || 0} finalized pairs
+        ${item.model ? ` • ${esc(item.model)}` : ""}
+      </div>
+      <div class="learning-text">${esc(item.suggestion_text || "")}</div>
+      ${
+        item.status === "pending"
+          ? `<div class="learning-actions">
+              <button class="btn success small" data-skill-review="${item.id}" data-decision="accepted">
+                ACCEPT FOR FOLLOW-UP
+              </button>
+              <button class="btn small" data-skill-review="${item.id}" data-decision="rejected">
+                REJECT
+              </button>
+            </div>
+            <div class="footer-note">Accepting does not change the master Skill automatically.</div>`
+          : ""
+      }
+    </div>
+  `).join("");
+
+  host.querySelectorAll("[data-skill-review]").forEach((button) => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const result = await window.BachSBOBackend.reviewSkillSuggestion(
+          button.dataset.skillReview,
+          button.dataset.decision
+        );
+        learningMessage(result?.note || "Suggestion reviewed.");
+        await renderLearningDashboard();
+      } catch (error) {
+        learningMessage(error?.message || "Suggestion review failed.", true);
+      } finally {
+        button.disabled = false;
+      }
+    };
+  });
+}
+
+async function renderLearningDashboard() {
+  if (!backendReady) return;
+
+  learningMessage("");
+  const overview = await window.BachSBOBackend.getLearningOverview();
+
+  document.getElementById("learningFinalizedCount").textContent =
+    String(overview.finalizedCount || 0);
+
+  document.getElementById("learningActiveSkill").textContent =
+    overview.activeSkill
+      ? `${overview.activeSkill.name || "SBO Skill"} v${overview.activeSkill.version}`
+      : "Not configured";
+
+  const activeStyle = (overview.styleProfiles || []).find((x) => x.is_active);
+  document.getElementById("learningActiveStyle").textContent =
+    activeStyle ? `v${activeStyle.version}` : "None";
+
+  renderStyleProfiles(overview.styleProfiles || []);
+  renderSkillSuggestions(overview.skillSuggestions || []);
+
+  const styleButton = document.getElementById("generateStyleBtn");
+  const skillButton = document.getElementById("generateSkillSuggestionBtn");
+
+  styleButton.disabled = (overview.finalizedCount || 0) < 5;
+  skillButton.disabled = (overview.finalizedCount || 0) < 10;
+}
+
+async function generateStyleCandidate() {
+  const button = document.getElementById("generateStyleBtn");
+  button.disabled = true;
+  const old = button.textContent;
+  button.textContent = "ANALYZING…";
+
+  try {
+    const result = await window.BachSBOBackend.analyzeStyle();
+    learningMessage(
+      `Style candidate v${result?.candidate?.version || "?"} created. Review it before activation.`
+    );
+    await renderLearningDashboard();
+  } catch (error) {
+    learningMessage(error?.message || "Style analysis failed.", true);
+  } finally {
+    button.textContent = old;
+  }
+}
+
+async function generateSkillSuggestion() {
+  const button = document.getElementById("generateSkillSuggestionBtn");
+  button.disabled = true;
+  const old = button.textContent;
+  button.textContent = "ANALYZING…";
+
+  try {
+    await window.BachSBOBackend.analyzeSkill();
+    learningMessage(
+      "Pending Skill suggestion created. It will not change the active Skill."
+    );
+    await renderLearningDashboard();
+  } catch (error) {
+    learningMessage(error?.message || "Skill analysis failed.", true);
+  } finally {
+    button.textContent = old;
+  }
+}
+
 async function signOut() {
   try {
     await window.BachSBOBackend.signOut();
@@ -941,6 +1148,14 @@ function esc(value) {
 function attr(value) {
   return esc(value).replace(/`/g, "&#096;");
 }
+
+document.getElementById("patientsNav").onclick = () => setView("patients");
+document.getElementById("aiLearningNav").onclick = () => setView("learning");
+document.getElementById("refreshLearningBtn").onclick = () =>
+  renderLearningDashboard().catch(handleBackendError);
+document.getElementById("generateStyleBtn").onclick = generateStyleCandidate;
+document.getElementById("generateSkillSuggestionBtn").onclick =
+  generateSkillSuggestion;
 
 document.getElementById("startShiftBtn").onclick = startShift;
 document.getElementById("addPatientBtn").onclick = addPatient;
