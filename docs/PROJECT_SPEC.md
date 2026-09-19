@@ -264,15 +264,17 @@ Button:
 
 Current implementation:
 
-- deterministic mock generation in the frontend.
-
-Target production behavior:
-
-- sends the de-identified case to a backend Summary Skill,
-- retrieves similar doctor-approved cases,
-- generates a draft with GPT,
+- saves the current case through the privacy-gated backend,
+- reads the de-identified case from PostgreSQL,
+- loads the active backend SBO Documentation Skill version,
+- loads an optional active writing-style profile,
+- generates a draft with GPT in the `generate-summary` Edge Function,
 - stores the original generated draft separately from later doctor edits,
 - inserts the editable working text into the summary textarea.
+
+Planned extension:
+
+- retrieve similar doctor-approved finalized cases before generation.
 
 ### Summary textarea
 
@@ -353,13 +355,15 @@ Current backend tables:
 - cases,
 - test_entries,
 - summaries,
-- summary_revisions.
+- summary_revisions,
+- skill_versions,
+- style_profiles.
 
 The server database enforces at most one ACTIVE shift per owner.
 
 The application restores the active shift and its cases from the backend after refresh or on another signed-in device.
 
-The current branch still requires the de-identification and live AI milestones before it should be treated as the completed clinical system.
+The current branch implements the backend persistence, de-identification, Skill versioning, and server-side summary-generation foundations. Similar-case retrieval, automated style learning, deployment verification, and broader production hardening remain.
 
 ## 14. Planned modules
 
