@@ -93,7 +93,7 @@ docs/
 ## Backend setup
 
 1. Create a Supabase project.
-2. Apply migrations `001_backend_v1.sql` through `011_atomic_finalize.sql` in order.
+2. Apply migrations `001_backend_v1.sql` through `012_required_field_states.sql` in order.
 3. Put the project URL and **publishable key** in `config.js`.
 4. Configure Auth/GitHub Pages redirect, create the owner account, then disable public signup.
 5. Set the model/API secrets plus `APP_ORIGIN` and `APP_OWNER_USER_ID` in Supabase.
