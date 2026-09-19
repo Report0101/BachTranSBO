@@ -234,14 +234,14 @@
                   <div class="field">
                     <label data-i18n="diagnoses">Diagnoses</label>
                     <textarea id="fDiagnoses" placeholder="One diagnosis per line or separated by semicolons. Hungarian or Latin terms."></textarea>
-                    <div class="subtle diagnoses-note">Doctor-entered diagnoses only. Summary generation must not infer new diagnoses from test results.</div>
+                    <div class="subtle diagnoses-note" data-i18n="diagnosesNote">Doctor-entered diagnoses only. Summary generation must not infer new diagnoses from test results.</div>
                   </div>
                   <div class="field">
                     <label data-i18n="disposition">Disposition</label>
                     <select id="fDisposition">
                       <option value="">Active / in progress</option>
                       <option value="discharged">Discharged</option>
-                      <option value="admitted">Admitted / submitted</option>
+                      <option value="admitted">Admitted / transferred</option>
                       <option value="other">Other</option>
                     </select>
                   </div>
@@ -320,25 +320,23 @@
       <section id="aiLearningView" class="hidden">
         <div class="learning-head">
           <div>
-            <h1>AI Learning</h1>
-            <div class="subtle">
-              Doctor-approved learning from Finalized Summaries. Nothing here auto-edits the master Skill.
-            </div>
+            <h1 data-i18n="aiLearningNav">AI Learning</h1>
+            <div class="subtle" data-i18n="learningDesc">Doctor-approved learning from finalized summaries. Nothing here auto-edits the master Skill.</div>
           </div>
-          <button class="btn" id="refreshLearningBtn" type="button">REFRESH</button>
+          <button class="btn" id="refreshLearningBtn" type="button" data-i18n="refresh">REFRESH</button>
         </div>
 
         <div class="learning-metrics">
           <div class="card learning-metric">
-            <div class="subtle">Finalized corpus</div>
+            <div class="subtle" data-i18n="finalizedCorpus">Finalized corpus</div>
             <div class="learning-number" id="learningFinalizedCount">—</div>
           </div>
           <div class="card learning-metric">
-            <div class="subtle">Active Skill</div>
+            <div class="subtle" data-i18n="activeSkill">Active Skill</div>
             <div class="learning-number small" id="learningActiveSkill">—</div>
           </div>
           <div class="card learning-metric">
-            <div class="subtle">Active style</div>
+            <div class="subtle" data-i18n="activeStyle">Active style</div>
             <div class="learning-number small" id="learningActiveStyle">—</div>
           </div>
         </div>
@@ -349,11 +347,11 @@
           <div class="card">
             <div class="card-h">
               <div>
-                <h3>Writing style</h3>
-                <div class="subtle">Generated → Finalized pairs. Candidate requires explicit activation.</div>
+                <h3 data-i18n="writingStyle">Writing style</h3>
+                <div class="subtle" data-i18n="styleDesc">Generated → Finalized pairs. Candidate requires explicit activation.</div>
               </div>
               <button class="btn primary small" id="generateStyleBtn" type="button">
-                GENERATE CANDIDATE
+                <span data-i18n="generateCandidate">GENERATE CANDIDATE</span>
               </button>
             </div>
             <div class="card-b" id="styleProfilesList">
@@ -364,11 +362,11 @@
           <div class="card">
             <div class="card-h">
               <div>
-                <h3>Skill improvement suggestions</h3>
-                <div class="subtle">Advisory only. Accepting never modifies Skill versions automatically.</div>
+                <h3 data-i18n="skillSuggestions">Skill improvement suggestions</h3>
+                <div class="subtle" data-i18n="skillSuggestionsDesc">Advisory only. Accepting never modifies Skill versions automatically.</div>
               </div>
               <button class="btn primary small" id="generateSkillSuggestionBtn" type="button">
-                ANALYZE EDITS
+                <span data-i18n="analyzeEdits">ANALYZE EDITS</span>
               </button>
             </div>
             <div class="card-b" id="skillSuggestionsList">
@@ -381,16 +379,16 @@
       <section id="adminView" class="hidden">
         <div class="learning-head">
           <div>
-            <h1>Admin</h1>
-            <div class="subtle">Single-owner account security settings.</div>
+            <h1 data-i18n="adminNav">Admin</h1>
+            <div class="subtle" data-i18n="adminDesc">Single-owner account security settings.</div>
           </div>
         </div>
 
         <div class="card admin-card">
           <div class="card-h">
             <div>
-              <h3>Account</h3>
-              <div class="subtle">Only the configured owner account can use this app.</div>
+              <h3 data-i18n="account">Account</h3>
+              <div class="subtle" data-i18n="accountDesc">Only the configured owner account can use this app.</div>
             </div>
           </div>
           <div class="card-b">
@@ -400,30 +398,30 @@
             </div>
 
             <div class="section">
-              <div class="section-title">Change password</div>
+              <div class="section-title" data-i18n="changePassword">Change password</div>
               <div class="info-bar">
-                Minimum 6 characters. No special complexity rule is required by this app.
+                <span data-i18n="passwordRule">Minimum 6 characters. No special complexity rule is required by this app.</span>
               </div>
 
               <div class="field">
-                <label>Current password</label>
+                <label data-i18n="currentPassword">Current password</label>
                 <input id="currentAdminPassword" type="password" autocomplete="current-password" />
               </div>
               <div class="field">
-                <label>New password</label>
+                <label data-i18n="newPassword">New password</label>
                 <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="6" />
               </div>
               <div class="field">
-                <label>Confirm new password</label>
+                <label data-i18n="confirmPassword">Confirm new password</label>
                 <input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="6" />
               </div>
 
               <div class="toolbar">
                 <button class="btn primary" id="changeAdminPasswordBtn" type="button">
-                  CHANGE PASSWORD
+                  <span data-i18n="changePasswordButton">CHANGE PASSWORD</span>
                 </button>
                 <button class="btn" id="adminSignOutBtn" type="button">
-                  SIGN OUT
+                  <span data-i18n="signOut">SIGN OUT</span>
                 </button>
               </div>
               <div id="adminPasswordMessage" class="subtle mt16"></div>
