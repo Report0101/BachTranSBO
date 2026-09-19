@@ -15,7 +15,13 @@
       <div class="brand">ER COMMAND CENTER</div>
       <div class="shift-meta" id="shiftMeta"></div>
     </div>
-    <div class="toolbar" id="topActions"></div>
+    <div class="toolbar topbar-tools">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-btn active" id="langEnBtn" type="button">EN</button>
+        <button class="lang-btn" id="langHuBtn" type="button">HU</button>
+      </div>
+      <div class="toolbar" id="topActions"></div>
+    </div>
   </header>
 
   <div class="layout">
@@ -33,9 +39,9 @@
     <main class="main">
       <section id="noShiftView" class="empty hidden">
         <div class="empty-card">
-          <h1>No active shift</h1>
-          <p>Mỗi thời điểm chỉ có một shift active.</p>
-          <button class="btn primary" id="startShiftBtn">START SHIFT</button>
+          <h1 data-i18n="noActiveShift">No active shift</h1>
+          <p data-i18n="oneShiftOnly">Only one shift can be active at a time.</p>
+          <button class="btn primary" id="startShiftBtn" data-i18n="startShift">START SHIFT</button>
         </div>
       </section>
 
@@ -45,8 +51,8 @@
             <div class="card">
               <div class="card-h">
                 <div>
-                  <h3>Import new patient</h3>
-                  <div class="subtle">ID auto từ 01 trong mỗi shift.</div>
+                  <h3 data-i18n="importPatient">Import new patient</h3>
+                  <div class="subtle" data-i18n="autoId">ID automatically starts from 01 in each shift.</div>
                 </div>
               </div>
               <div class="card-b">
@@ -56,7 +62,7 @@
                     <input id="newId" disabled />
                   </div>
                   <div class="field">
-                    <label>Sex</label>
+                    <label data-i18n="sex">Sex</label>
                     <select id="newSex">
                       <option value="">—</option>
                       <option>M</option>
@@ -64,23 +70,23 @@
                     </select>
                   </div>
                   <div class="field">
-                    <label>Year of birth</label>
-                    <input id="newYob" inputmode="numeric" placeholder="1959" />
+                    <label data-i18n="yob">Year of birth</label>
+                    <input id="newYob" inputmode="numeric" maxlength="4" placeholder="1955 or 55" />
                   </div>
                 </div>
                 <div class="field">
-                  <label>Main complaint</label>
+                  <label data-i18n="mainComplaint">Main complaint</label>
                   <input id="newComplaint" placeholder="Chest pain" />
                 </div>
-                <button class="btn primary" id="addPatientBtn">ADD PATIENT</button>
+                <button class="btn primary" id="addPatientBtn" data-i18n="addPatient">ADD PATIENT</button>
               </div>
             </div>
 
             <div class="card mt16">
               <div class="card-h">
                 <div>
-                  <h3>Patient record</h3>
-                  <div class="subtle">Status chỉ hiển thị các test đang WAITING FOR RESULT.</div>
+                  <h3 data-i18n="patientRecord">Patient record</h3>
+                  <div class="subtle" data-i18n="waitingOnly">Status shows tests currently waiting for result.</div>
                 </div>
               </div>
               <div class="card-b table-wrap">
@@ -188,12 +194,17 @@
                 </div>
 
                 <div class="section">
-                  <div class="section-title">4. Final decision / disposition</div>
+                  <div class="section-title" data-i18n="finalDecision">4. Final decision / disposition</div>
                   <div class="info-bar">
                     Final chỉ là quyết định xử trí. Patient chưa completed cho đến khi Summary được Finalize.
                   </div>
                   <div class="field">
-                    <label>Disposition</label>
+                    <label data-i18n="diagnoses">Diagnoses</label>
+                    <textarea id="fDiagnoses" placeholder="One diagnosis per line or separated by semicolons. Hungarian or Latin terms."></textarea>
+                    <div class="subtle diagnoses-note">Doctor-entered diagnoses only. Summary generation must not infer new diagnoses from test results.</div>
+                  </div>
+                  <div class="field">
+                    <label data-i18n="disposition">Disposition</label>
                     <select id="fDisposition">
                       <option value="">Active / in progress</option>
                       <option value="discharged">Discharged</option>
