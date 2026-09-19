@@ -382,6 +382,22 @@
     );
   }
 
+  async function finalizePatient(shiftId, patient) {
+    if (!shiftId || !patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
+      throw new Error("Finalized patient payload is incomplete.");
+    }
+
+    return invokeAuthedFunction(
+      "clinical-store",
+      {
+        action: "finalize_patient",
+        shiftId,
+        patient
+      },
+      "Atomic clinical finalization"
+    );
+  }
+
   async function appendSummaryRevision(patient) {
     if (!patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
       return { removed: 0, report: null };
@@ -460,6 +476,7 @@
     loadState,
     saveState,
     savePatient,
+    finalizePatient,
     appendSummaryRevision,
     generateSummary,
     getLearningOverview,
