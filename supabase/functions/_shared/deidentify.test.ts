@@ -1,4 +1,5 @@
 import {
+  clinicalTextItems,
   ruleBasedDeidentify,
 } from "./deidentify.ts";
 
@@ -38,4 +39,34 @@ Deno.test("redacts explicitly labelled person name", () => {
   const result = ruleBasedDeidentify(input);
   if (!result.text.includes("[PERSON]")) throw new Error(result.text);
   if (result.text.includes("Kovács János")) throw new Error(result.text);
+});
+
+
+Deno.test("clinical text inventory includes diagnoses and structured radiology free text", () => {
+  const items = clinicalTextItems({
+    diagnoses: "Név: Kovács János",
+    tests: {
+      radiology: [{
+        type: "has CT",
+        bodyPart: "has",
+        modality: "other",
+        otherTest: "Név: Kovács János",
+        text: "lelet",
+        savedText: "lelet",
+      }],
+    },
+  });
+
+  const keys = new Set(items.map((item) => item.key));
+  for (const key of [
+    "diagnoses",
+    "tests.radiology.0.type",
+    "tests.radiology.0.bodyPart",
+    "tests.radiology.0.modality",
+    "tests.radiology.0.otherTest",
+    "tests.radiology.0.text",
+    "tests.radiology.0.savedText",
+  ]) {
+    if (!keys.has(key)) throw new Error(`Missing clinical text key: ${key}`);
+  }
 });
