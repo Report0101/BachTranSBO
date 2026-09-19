@@ -726,20 +726,35 @@ async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
-  patient.summary = buildMockSummary(patient);
-  patient.summaryGeneratedText = patient.summary;
-  patient.summaryGeneratedAt = nowIso();
-
-  persist();
-
-  document.getElementById("fSummary").value = patient.summary;
-  renderSummaryStatus(patient);
+  const button = document.getElementById("generateSummaryBtn");
+  const oldLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "GENERATING…";
 
   try {
+    // Persist first so the AI only sees the de-identified database copy.
     await persistNow();
-    flash("Summary generated (mock backend skill).");
+
+    const result = await window.BachSBOBackend.generateSummary(patient.id);
+
+    patient.summary = result.summary || "";
+    patient.summaryGeneratedText = patient.summary;
+    patient.summaryGeneratedAt = result.generatedAt || nowIso();
+    patient.summaryModel = result.model || "";
+    patient.summarySkillVersion = result.skillVersion || "";
+
+    document.getElementById("fSummary").value = patient.summary;
+    renderSummaryStatus(patient);
+
+    const suffix = result.skillVersion
+      ? ` • Skill v${result.skillVersion}`
+      : "";
+    flash(`Summary generated${suffix}.`);
   } catch (error) {
     handleBackendError(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = oldLabel;
   }
 }
 
