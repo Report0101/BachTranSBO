@@ -272,9 +272,14 @@ Current implementation:
 - stores the original generated draft separately from later doctor edits,
 - inserts the editable working text into the summary textarea.
 
-Planned extension:
+Current retrieval behavior:
 
-- retrieve similar doctor-approved finalized cases before generation.
+- finalized revisions store a de-identified clinical case snapshot,
+- the snapshot is embedded with the configured embedding model,
+- Generate Summary embeds the current de-identified case,
+- up to four similar finalized cases are retrieved by cosine similarity,
+- retrieved cases are supplied only as style/structure examples,
+- the prompt explicitly forbids copying old patient facts into the current case.
 
 ### Summary textarea
 
@@ -363,7 +368,7 @@ The server database enforces at most one ACTIVE shift per owner.
 
 The application restores the active shift and its cases from the backend after refresh or on another signed-in device.
 
-The current branch implements the backend persistence, de-identification, Skill versioning, and server-side summary-generation foundations. Similar-case retrieval, automated style learning, deployment verification, and broader production hardening remain.
+The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, and similar-case retrieval. Automated style learning, deployment verification, and broader production hardening remain.
 
 ## 14. Planned modules
 
