@@ -55,6 +55,11 @@ window.BACH_SBO_CONFIG = {
     return document.querySelector("tr.selected[data-id]");
   }
 
+  function selectedCaseLabel() {
+    const row = selectedRow();
+    return row?.querySelector("td")?.textContent?.trim() || "selected";
+  }
+
   function ensureUi() {
     const form = document.getElementById("patientForm");
     const main = document.getElementById("fMainComplaint");
@@ -88,7 +93,10 @@ window.BACH_SBO_CONFIG = {
           <label data-ice-label="arrivalOther">Arrival details</label>
           <input id="iceArrivalOther" placeholder="Describe arrival..." />
         </div>
-        <div class="subtle" id="iceStatus"></div>
+        <div class="toolbar" style="justify-content:space-between;margin-top:8px">
+          <div class="subtle" id="iceStatus"></div>
+          <button class="btn small" id="iceDeleteCase" type="button" style="border-color:#fecaca;color:#b91c1c;background:#fff5f5">DELETE CASE</button>
+        </div>
       `;
       main.closest(".field")?.after(host);
     }
@@ -117,6 +125,8 @@ window.BACH_SBO_CONFIG = {
       ).join("");
       sel.value = current;
     }
+    const del = document.getElementById("iceDeleteCase");
+    if (del) del.textContent = label("DELETE CASE", "ESET TÖRLÉSE");
   }
 
   async function loadSelected() {
@@ -182,6 +192,40 @@ window.BACH_SBO_CONFIG = {
     if (st) st.textContent = label("Case details saved.", "Esetadatok mentve.");
   }
 
+  async function deleteSelectedCase() {
+    const id = selectedId();
+    const client = db();
+    if (!id || !client) return;
+
+    const name = selectedCaseLabel();
+    const firstConfirm = confirm(label(
+      `Delete case ${name}? This will permanently remove the case, tests, summary and finalized revisions.`,
+      `Törli a(z) ${name} esetet? Ez véglegesen törli az esetet, vizsgálatokat, összefoglalót és véglegesített verziókat.`
+    ));
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm(label(
+      "This cannot be undone. Continue?",
+      "Ez nem vonható vissza. Folytatja?"
+    ));
+    if (!secondConfirm) return;
+
+    const st = document.getElementById("iceStatus");
+    const btn = document.getElementById("iceDeleteCase");
+    if (btn) btn.disabled = true;
+    if (st) st.textContent = label("Deleting case…", "Eset törlése…");
+
+    const { error } = await client.from("cases").delete().eq("id", id);
+    if (error) {
+      console.warn(error);
+      if (btn) btn.disabled = false;
+      if (st) st.textContent = label("Could not delete case.", "Nem sikerült törölni az esetet.");
+      return;
+    }
+
+    window.location.reload();
+  }
+
   function wireUi() {
     const ids = ["iceSex", "iceAge", "iceYob", "iceArrival", "iceArrivalOther", "fMainComplaint"];
     ids.forEach((id) => {
@@ -201,6 +245,12 @@ window.BACH_SBO_CONFIG = {
       el.addEventListener("input", handler);
       el.addEventListener("change", handler);
     });
+
+    const del = document.getElementById("iceDeleteCase");
+    if (del && del.dataset.iceWired !== "true") {
+      del.dataset.iceWired = "true";
+      del.addEventListener("click", deleteSelectedCase);
+    }
   }
 
   function install() {
