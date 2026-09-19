@@ -27,11 +27,8 @@ window.BACH_SBO_CONFIG = {
   const label = (en, hu) => lang() === "hu" ? hu : en;
   const ageFromYob = (yob) => {
     const y = Number(yob);
-    return Number.isFinite(y) && y > 0 ? String(YEAR - y) : "";
-  };
-  const yobFromAge = (age) => {
-    const a = Number(String(age || "").trim());
-    return Number.isInteger(a) && a >= 0 && a <= 130 ? String(YEAR - a) : "";
+    if (!Number.isInteger(y) || y < 1900 || y > YEAR) return "";
+    return String(YEAR - y);
   };
 
   function db() {
@@ -77,12 +74,12 @@ window.BACH_SBO_CONFIG = {
             <select id="iceSex"><option value="">—</option><option value="M">M</option><option value="F">F</option></select>
           </div>
           <div class="field">
-            <label data-ice-label="age">Age</label>
-            <input id="iceAge" inputmode="numeric" maxlength="3" placeholder="72" />
-          </div>
-          <div class="field">
             <label data-ice-label="yob">Year of birth</label>
             <input id="iceYob" inputmode="numeric" maxlength="4" placeholder="1955" />
+          </div>
+          <div class="field">
+            <label data-ice-label="age">Age</label>
+            <input id="iceAge" inputmode="numeric" maxlength="3" placeholder="auto" readonly aria-readonly="true" style="background:#f8fafc;color:#64748b" />
           </div>
         </div>
         <div class="field">
@@ -169,11 +166,14 @@ window.BACH_SBO_CONFIG = {
     if (!id || !client) return;
 
     const arrival = document.getElementById("iceArrival")?.value || "";
-    const yob = String(document.getElementById("iceYob")?.value || "").trim()
-      || yobFromAge(document.getElementById("iceAge")?.value);
+    const yobText = String(document.getElementById("iceYob")?.value || "").trim();
+    const yobNum = Number(yobText);
+    const validYob = Number.isInteger(yobNum) && yobNum >= 1900 && yobNum <= YEAR;
+    document.getElementById("iceAge").value = validYob ? ageFromYob(yobNum) : "";
+
     const payload = {
       sex: document.getElementById("iceSex")?.value || null,
-      year_of_birth: yob ? Number(yob) : null,
+      year_of_birth: validYob ? yobNum : null,
       main_complaint: document.getElementById("fMainComplaint")?.value || "",
       arrival_mode: arrival,
       arrival_other: arrival === "other" ? document.getElementById("iceArrivalOther")?.value || "" : "",
@@ -189,7 +189,9 @@ window.BACH_SBO_CONFIG = {
       return;
     }
     rowUpdate(payload);
-    if (st) st.textContent = label("Case details saved.", "Esetadatok mentve.");
+    if (st) st.textContent = validYob || !yobText
+      ? label("Case details saved.", "Esetadatok mentve.")
+      : label("Birth year must be between 1900 and current year.", "A születési évnek 1900 és az aktuális év között kell lennie.");
   }
 
   async function deleteSelectedCase() {
@@ -227,17 +229,16 @@ window.BACH_SBO_CONFIG = {
   }
 
   function wireUi() {
-    const ids = ["iceSex", "iceAge", "iceYob", "iceArrival", "iceArrivalOther", "fMainComplaint"];
+    const ids = ["iceSex", "iceYob", "iceArrival", "iceArrivalOther", "fMainComplaint"];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (!el || el.dataset.iceWired === "true") return;
       el.dataset.iceWired = "true";
       const handler = () => {
-        const age = document.getElementById("iceAge");
         const yob = document.getElementById("iceYob");
+        const age = document.getElementById("iceAge");
         const arrival = document.getElementById("iceArrival");
-        if (id === "iceAge" && yob) yob.value = yobFromAge(el.value);
-        if (id === "iceYob" && age) age.value = ageFromYob(el.value);
+        if (id === "iceYob" && age && yob) age.value = ageFromYob(yob.value);
         document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (arrival?.value || "") !== "other");
         clearTimeout(window.__iceTimer);
         window.__iceTimer = setTimeout(saveSelected, 300);
