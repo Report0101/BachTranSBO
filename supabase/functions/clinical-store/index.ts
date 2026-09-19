@@ -111,6 +111,41 @@ function flattenTests(patient: any, ownerId: string) {
   return rows;
 }
 
+async function syncTests(db: any, ownerId: string, patient: any) {
+  const rows = flattenTests(patient, ownerId);
+  const currentIds = new Set(rows.map((row) => row.id));
+
+  const { data: existingRows, error: existingError } = await db
+    .from("test_entries")
+    .select("id")
+    .eq("case_id", patient.id)
+    .eq("owner_id", ownerId);
+
+  if (existingError) throw existingError;
+
+  if (rows.length) {
+    const { error: upsertError } = await db
+      .from("test_entries")
+      .upsert(rows, { onConflict: "id" });
+    if (upsertError) throw upsertError;
+  }
+
+  const staleIds = (existingRows || [])
+    .map((row: any) => row.id)
+    .filter((id: string) => !currentIds.has(id));
+
+  if (staleIds.length) {
+    const { error: deleteError } = await db
+      .from("test_entries")
+      .delete()
+      .eq("case_id", patient.id)
+      .eq("owner_id", ownerId)
+      .in("id", staleIds);
+
+    if (deleteError) throw deleteError;
+  }
+}
+
 function snapshotTest(entry: any, category: string, sequence: number) {
   const mode = entry?.mode || "waiting";
   const text = String(entry?.text || "").trim();
@@ -267,12 +302,8 @@ async function saveState(db: any, ownerId: string, inputState: any) {
       .upsert(caseRows, { onConflict: "id" });
     if (caseError) throw caseError;
 
-    const testRows = patients.flatMap((p: any) => flattenTests(p, ownerId));
-    if (testRows.length) {
-      const { error: testError } = await db
-        .from("test_entries")
-        .upsert(testRows, { onConflict: "id" });
-      if (testError) throw testError;
+    for (const patient of patients) {
+      await syncTests(db, ownerId, patient);
     }
 
     const summaryRows = patients
@@ -365,13 +396,7 @@ async function savePatient(
 
   if (caseError) throw caseError;
 
-  const testRows = flattenTests(patient, ownerId);
-  if (testRows.length) {
-    const { error: testError } = await db
-      .from("test_entries")
-      .upsert(testRows, { onConflict: "id" });
-    if (testError) throw testError;
-  }
+  await syncTests(db, ownerId, patient);
 
   if (
     patient.summary ||
