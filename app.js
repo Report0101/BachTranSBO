@@ -30,6 +30,17 @@ async function persistNow() {
   );
   stateDirty = false;
 
+  if (result?.patient?.id === patient.id) {
+    Object.assign(patient, result.patient);
+
+    // The browser form is updated to the same de-identified representation
+    // that was permanently stored. Raw identifiers are not kept as the
+    // operational in-memory version after an explicit save.
+    if (currentView === "patients" && selectedPatientId === patient.id) {
+      loadPatientForm();
+    }
+  }
+
   if (result?.removed > 0) {
     flash(`Privacy filter removed ${result.removed} identifier(s).`);
   }
@@ -732,6 +743,13 @@ async function finalizeSummary() {
     await persistNow();
     const revisionResult =
       await window.BachSBOBackend.appendSummaryRevision(patient);
+
+    if (revisionResult?.patient?.id === patient.id) {
+      Object.assign(patient, revisionResult.patient);
+      document.getElementById("fSummary").value =
+        patient.summaryFinalizedText || patient.summary || "";
+    }
+
     if (revisionResult?.removed > 0) {
       flash(
         `Privacy filter removed ${revisionResult.removed} identifier(s) from finalized corpus.`
@@ -745,8 +763,11 @@ async function finalizeSummary() {
     return;
   }
 
+  const clipboardText =
+    patient.summaryFinalizedText || patient.summary || text;
+
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(clipboardText);
     flash("Summary finalized and copied to clipboard.");
   } catch {
     flash("Summary finalized. Clipboard unavailable.");
