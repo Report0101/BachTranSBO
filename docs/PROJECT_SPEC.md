@@ -370,7 +370,7 @@ The server database enforces at most one ACTIVE shift per owner.
 
 The application restores the active shift and its cases from the backend after refresh or on another signed-in device.
 
-The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, similar-case retrieval, human-approved writing-style candidate generation, and advisory Skill-improvement suggestions. The AI-learning dashboard, deployment verification, and broader production hardening remain.
+The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, similar-case retrieval, human-approved writing-style candidate generation, advisory Skill-improvement suggestions, and an AI Learning review dashboard. Deployment verification and broader production hardening remain.
 
 ## 14. Planned modules
 
@@ -392,6 +392,20 @@ The current branch implements backend persistence, de-identification, Skill vers
 - Final Decision
 - Case Summary
 - Save / persistence
+
+### AI Learning module
+
+The operational sidebar includes an AI Learning dashboard that can:
+
+- show finalized corpus size,
+- show the active Skill version,
+- show active/inactive writing-style profiles,
+- generate a style candidate after the minimum finalized-case threshold,
+- explicitly activate a reviewed style profile,
+- generate pending Skill-improvement suggestions,
+- explicitly accept/reject suggestions for human follow-up.
+
+Accepting a Skill suggestion does not change `skill_versions`.
 
 ### Backend-only modules
 
