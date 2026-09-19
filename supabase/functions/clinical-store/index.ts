@@ -85,6 +85,100 @@ function flattenTests(patient: any, ownerId: string) {
   return rows;
 }
 
+function snapshotTest(entry: any, category: string, sequence: number) {
+  const mode = entry?.mode || "waiting";
+  const text = String(entry?.text || "").trim();
+  const saved = String(entry?.savedText || "").trim();
+
+  const status = mode === "notordered"
+    ? "not_ordered"
+    : saved && text === saved
+    ? "result_available"
+    : "waiting_for_result";
+
+  return {
+    category,
+    type: entry?.type || "",
+    sequence,
+    status,
+    result: status === "result_available" ? saved : null,
+  };
+}
+
+function corpusSnapshot(patient: any) {
+  const age = patient?.yob
+    ? new Date().getUTCFullYear() - Number(patient.yob)
+    : null;
+
+  const tests: any[] = [];
+  (patient.tests?.labs || []).forEach((x: any, i: number) =>
+    tests.push(snapshotTest(x, "lab", i + 1))
+  );
+  if (patient.tests?.ekg) tests.push(snapshotTest(patient.tests.ekg, "ekg", 1));
+  if (patient.tests?.gas) tests.push(snapshotTest(patient.tests.gas, "gas", 1));
+  (patient.tests?.radiology || []).forEach((x: any, i: number) =>
+    tests.push(snapshotTest(x, "radiology", i + 1))
+  );
+  (patient.tests?.consultations || []).forEach((x: any, i: number) =>
+    tests.push(snapshotTest(x, "consultation", i + 1))
+  );
+
+  return {
+    sex: patient.sex || "",
+    age,
+    main_complaint: patient.mainComplaint || "",
+    complaint: patient.complaint || "",
+    history: patient.history || "",
+    physical_examination: patient.physical || "",
+    tests,
+    others: patient.others || "",
+    therapy: patient.therapy || "",
+    clinical_course: patient.course || "",
+    disposition: patient.disposition || "",
+    recommendations: patient.recommendations || [],
+    admission: {
+      hospital: patient.hospital || "",
+      ward: patient.ward || "",
+      accepting_physician: patient.physician || "",
+      note: patient.admissionNote || "",
+    },
+    other_outcome: {
+      outcome: patient.otherOutcome || "",
+      details: patient.otherDetails || "",
+    },
+  };
+}
+
+async function createEmbedding(input: string) {
+  const model = Deno.env.get("EMBEDDING_MODEL") || "text-embedding-3-small";
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${requireEnv("OPENAI_API_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Embedding generation failed (${response.status}): ${detail.slice(0, 500)}`,
+    );
+  }
+
+  const payload = await response.json();
+  const embedding = payload?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) {
+    throw new Error("Embedding API returned no vector.");
+  }
+
+  return { embedding, model };
+}
+
 async function saveState(db: any, ownerId: string, inputState: any) {
   const { state, report } = await deidentifyState(inputState);
 
@@ -206,19 +300,54 @@ async function appendRevision(db: any, ownerId: string, patientInput: any) {
 
   if (summaryMetaError) throw summaryMetaError;
 
-  const { error } = await db.from("summary_revisions").insert({
-    case_id: patient.id,
-    owner_id: ownerId,
-    generated_text: patient.summaryGeneratedText || patient.summary || "",
-    finalized_text: patient.summaryFinalizedText,
-    finalized_at: patient.summaryFinalizedAt,
-    model: summaryMeta?.model || null,
-    skill_version: summaryMeta?.skill_version || null,
-    deidentification_version: "v1",
-  });
+  const snapshot = corpusSnapshot(patient);
+
+  const { data: revision, error } = await db
+    .from("summary_revisions")
+    .insert({
+      case_id: patient.id,
+      owner_id: ownerId,
+      generated_text: patient.summaryGeneratedText || patient.summary || "",
+      finalized_text: patient.summaryFinalizedText,
+      finalized_at: patient.summaryFinalizedAt,
+      model: summaryMeta?.model || null,
+      skill_version: summaryMeta?.skill_version || null,
+      deidentification_version: "v1",
+      case_snapshot: snapshot,
+    })
+    .select("id")
+    .single();
 
   if (error) throw error;
-  return { patient, report, removed: reportTotal(report) };
+
+  let embeddingWarning: string | null = null;
+  try {
+    const embedded = await createEmbedding(JSON.stringify(snapshot));
+    const { error: embeddingError } = await db
+      .from("summary_revisions")
+      .update({
+        embedding: embedded.embedding,
+        embedding_model: embedded.model,
+        embedding_created_at: new Date().toISOString(),
+      })
+      .eq("id", revision.id)
+      .eq("owner_id", ownerId);
+
+    if (embeddingError) throw embeddingError;
+  } catch (embeddingError) {
+    embeddingWarning = embeddingError instanceof Error
+      ? embeddingError.message
+      : "Embedding generation failed.";
+    console.error(embeddingError);
+  }
+
+  return {
+    patient,
+    report,
+    removed: reportTotal(report),
+    embedded: !embeddingWarning,
+    embeddingWarning,
+  };
 }
 
 Deno.serve(async (req) => {
