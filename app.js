@@ -674,10 +674,16 @@ async function generateSummary() {
     document.getElementById("fSummary").value = patient.summary;
     renderSummaryStatus(patient);
 
-    const suffix = result.skillVersion
+    const skillSuffix = result.skillVersion
       ? ` • Skill v${result.skillVersion}`
       : "";
-    flash(`Summary generated${suffix}.`);
+    const retrievalCount = Array.isArray(result.similarCasesUsed)
+      ? result.similarCasesUsed.length
+      : 0;
+    const retrievalSuffix = retrievalCount
+      ? ` • ${retrievalCount} similar case(s)`
+      : "";
+    flash(`Summary generated${skillSuffix}${retrievalSuffix}.`);
   } catch (error) {
     handleBackendError(error);
   } finally {
@@ -709,6 +715,9 @@ async function finalizeSummary() {
       flash(
         `Privacy filter removed ${revisionResult.removed} identifier(s) from finalized corpus.`
       );
+    }
+    if (revisionResult?.embeddingWarning) {
+      flash("Summary saved; similar-case embedding will need retry.");
     }
   } catch (error) {
     handleBackendError(error);
