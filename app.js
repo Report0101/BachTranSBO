@@ -7,22 +7,72 @@ let currentView = "patients";
 let uiLang = navigator.language?.toLowerCase().startsWith("hu") ? "hu" : "en";
 const I18N = {
   en: {
+    casesNav:"Cases", aiLearningNav:"AI Learning", adminNav:"Admin",
+    futureModules:"Future modules", analytics:"Analytics", archive:"Archive",
+    integrations:"Integrations", planned:"PLANNED",
     noActiveShift:"No active shift", oneShiftOnly:"Only one shift can be active at a time.",
-    startShift:"START SHIFT", importPatient:"Import new patient",
-    autoId:"ID automatically starts from 01 in each shift.", sex:"Sex", yob:"Year of birth",
-    mainComplaint:"Main complaint", addPatient:"ADD PATIENT", patientRecord:"Patient record",
-    waitingOnly:"Status shows tests currently waiting for result.",
-    diagnoses:"Diagnoses", disposition:"Disposition", finalDecision:"4. Final decision / disposition"
+    startShift:"START SHIFT", importCase:"Import new case",
+    autoId:"Case ID automatically starts from 01 in each shift.", sex:"Sex", yob:"Year of birth",
+    mainComplaint:"Main complaint", addCase:"ADD CASE", caseRecord:"Case list",
+    caseStatusHint:"Status shows unresolved items for each case.",
+    selectCasePrompt:"Select a case from the list.", noCaseSelected:"No case selected.",
+    reopenCase:"REOPEN CASE", sectionClinical:"1. Clinical", complaint:"Complaint",
+    patientHistory:"Patient history", markNone:"NONE", required:"REQUIRED", complete:"COMPLETE", none:"NONE",
+    sectionTests:"2. Tests and examination",
+    testLegend:"Orange = unresolved. Enter a result to turn green, or mark Not ordered to turn grey.",
+    physicalExam:"Physical examination — main points / status",
+    lab:"Lab", addLab:"+ ADD LAB", ekg:"EKG", bloodGas:"Blood gas (ABG / VBG)",
+    radiology:"Radiology", addRadiology:"+ ADD IMAGING",
+    consultations:"Consultations", addConsultation:"+ ADD CONSULTATION", others:"Others",
+    sectionCourse:"3. Treatment and course", therapy:"Therapy",
+    clinicalCourse:"Clinical course / case status change",
+    diagnoses:"Diagnoses", disposition:"Disposition",
+    finalDecision:"4. Final decision / disposition",
+    finalDecisionInfo:"Disposition records the clinical decision. The case closes only after the Summary is finalized.",
+    homePlan:"Recommendation and plan at home", addRecommendation:"+ Add recommendation",
+    hospital:"Hospital", ward:"Ward / department", acceptingPhysician:"Accepting physician",
+    additionalNote:"Additional note", outcome:"Outcome", details:"Details",
+    caseSummary:"5. Case summary",
+    summaryInfo:"Generate Summary uses the de-identified case and the active SBO Documentation Skill. Review and edit the draft before finalizing.",
+    generateSummary:"✨ GENERATE SUMMARY", summaryEditable:"Summary — editable",
+    finalizeSummary:"FINALIZE SUMMARY", saveCase:"SAVE CASE"
   },
   hu: {
+    casesNav:"Esetek", aiLearningNav:"AI tanulás", adminNav:"Admin",
+    futureModules:"Későbbi modulok", analytics:"Analitika", archive:"Archívum",
+    integrations:"Integrációk", planned:"TERVEZETT",
     noActiveShift:"Nincs aktív műszak", oneShiftOnly:"Egyszerre csak egy aktív műszak lehet.",
-    startShift:"MŰSZAK INDÍTÁSA", importPatient:"Új beteg felvétele",
-    autoId:"A betegazonosító minden műszakban 01-től indul.", sex:"Nem", yob:"Születési év",
-    mainComplaint:"Fő panasz", addPatient:"BETEG HOZZÁADÁSA", patientRecord:"Beteglista",
-    waitingOnly:"A státusz csak az eredményre váró vizsgálatokat mutatja.",
-    diagnoses:"Diagnózisok", disposition:"Diszpozíció", finalDecision:"4. Végső döntés / diszpozíció"
+    startShift:"MŰSZAK INDÍTÁSA", importCase:"Új eset felvétele",
+    autoId:"Az esetazonosító minden műszakban 01-től indul.", sex:"Nem", yob:"Születési év",
+    mainComplaint:"Fő panasz", addCase:"ESET HOZZÁADÁSA", caseRecord:"Esetlista",
+    caseStatusHint:"A státusz az eset még rendezetlen tételeit mutatja.",
+    selectCasePrompt:"Válasszon egy esetet a listából.", noCaseSelected:"Nincs kiválasztott eset.",
+    reopenCase:"ESET ÚJRANYITÁSA", sectionClinical:"1. Klinikai adatok", complaint:"Jelen panaszok",
+    patientHistory:"Anamnézis", markNone:"NINCS", required:"KÖTELEZŐ", complete:"KÉSZ", none:"NINCS",
+    sectionTests:"2. Vizsgálatok és fizikális státusz",
+    testLegend:"Narancs = rendezetlen. Eredmény megadásakor zöldre vált; ha nem történt vizsgálat, jelölje „Nem történt” állapotra.",
+    physicalExam:"Fizikális vizsgálat — lényeges eltérések / státusz",
+    lab:"Labor", addLab:"+ LABOR HOZZÁADÁSA", ekg:"EKG", bloodGas:"Vérgáz (AVG / VVG)",
+    radiology:"Képalkotó vizsgálatok", addRadiology:"+ KÉPALKOTÓ HOZZÁADÁSA",
+    consultations:"Konzíliumok", addConsultation:"+ KONZÍLIUM HOZZÁADÁSA", others:"Egyéb",
+    sectionCourse:"3. Terápia és kórlefolyás", therapy:"Terápia",
+    clinicalCourse:"Kórlefolyás / állapotváltozás",
+    diagnoses:"Diagnózisok", disposition:"Diszpozíció",
+    finalDecision:"4. Végső döntés / diszpozíció",
+    finalDecisionInfo:"A diszpozíció a végső ellátási döntést rögzíti. Az eset csak az összefoglaló véglegesítésekor zárul le.",
+    homePlan:"Otthoni javaslat és további terv", addRecommendation:"+ Javaslat hozzáadása",
+    hospital:"Kórház", ward:"Osztály / részleg", acceptingPhysician:"Átvevő orvos",
+    additionalNote:"Kiegészítő megjegyzés", outcome:"Kimenetel", details:"Részletek",
+    caseSummary:"5. Epikrízis",
+    summaryInfo:"Az összefoglaló a deidentifikált esetadatokból és az aktív SBO Documentation Skill alapján készül. Véglegesítés előtt ellenőrizze és szükség szerint szerkessze.",
+    generateSummary:"✨ ÖSSZEFOGLALÓ GENERÁLÁSA", summaryEditable:"Összefoglaló — szerkeszthető",
+    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE", saveCase:"ESET MENTÉSE"
   }
 };
+
+function t(key) {
+  return I18N[uiLang]?.[key] || I18N.en[key] || key;
+}
 
 function applyLanguage(lang) {
   uiLang = I18N[lang] ? lang : "en";
