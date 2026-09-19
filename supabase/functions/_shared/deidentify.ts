@@ -150,6 +150,7 @@ async function aiScrubItems(
     "Your job is to remove remaining NATURAL PERSON identifiers in patient-facing narrative text, especially unlabelled patient/family names, and any obvious personal identifier the rules missed.",
     "Replace natural-person names with [PERSON]. Replace TAJ with [TAJ], full date of birth with [DOB], addresses with [ADDRESS], phone with [PHONE], email with [EMAIL], and patient/EHR identifiers with [EXTERNAL_ID].",
     "Preserve diagnoses, symptoms, medications, laboratory values, procedures, hospital/institution/department names, geographic names when clinically relevant, and ordinary encounter dates.",
+    "Preserve clinician names and clinician references, especially text prefixed with Dr., dr., Dr, or dr.",
     "Do not rewrite, summarize, translate, correct, or improve the clinical text.",
     "Return ONLY valid JSON in exactly this shape: {\"items\":[{\"key\":\"...\",\"text\":\"...\"}]} and return every input key exactly once.",
     "",
@@ -220,6 +221,32 @@ async function bestEffortAiScrubItems(items: Array<{ key: string; text: string }
   }
 }
 
+function protectDrPrefixedNames(text: string): {
+  text: string;
+  protectedNames: Record<string, string>;
+} {
+  const protectedNames: Record<string, string> = {};
+  let index = 0;
+  const protectedText = text.replace(
+    /\b[Dd]r\.?\s+[A-ZÁÉÍÓÖŐÚÜŰ][\p{L}.'-]+(?:\s+[A-ZÁÉÍÓÖŐÚÜŰ][\p{L}.'-]+){0,3}/gu,
+    (match) => {
+      const token = `[[CLINICIAN_NAME_${index}]]`;
+      protectedNames[token] = match;
+      index += 1;
+      return token;
+    },
+  );
+  return { text: protectedText, protectedNames };
+}
+
+function restoreProtectedNames(text: string, protectedNames: Record<string, string>): string {
+  let out = text;
+  for (const [token, original] of Object.entries(protectedNames)) {
+    out = out.split(token).join(original);
+  }
+  return out;
+}
+
 export function clinicalTextItems(patient: any): Array<{ key: string; text: string }> {
   const items: Array<{ key: string; text: string }> = [];
   const add = (key: string, value: unknown) => {
@@ -272,7 +299,17 @@ export function clinicalTextItems(patient: any): Array<{ key: string; text: stri
 }
 
 function isClinicianNameSafeZone(key: string): boolean {
-  return key === "physician" || key.startsWith("tests.consultations.");
+  return [
+    "diagnoses",
+    "hospital",
+    "ward",
+    "physician",
+    "admissionNote",
+    "otherOutcome",
+    "otherDetails",
+  ].includes(key) ||
+    key.startsWith("recommendations.") ||
+    key.startsWith("tests.consultations.");
 }
 
 function setPath(root: any, path: string, value: string) {
@@ -301,13 +338,21 @@ export async function deidentifyPatient(patientInput: any): Promise<{
   });
 
   const safeZoneItems = ruleItems.filter((item) => isClinicianNameSafeZone(item.key));
-  const aiCandidateItems = ruleItems.filter((item) => !isClinicianNameSafeZone(item.key));
+  const unsafeItems = ruleItems.filter((item) => !isClinicianNameSafeZone(item.key));
+  const protectedByKey = new Map<string, Record<string, string>>();
+  const aiCandidateItems = unsafeItems.map((item) => {
+    const protectedItem = protectDrPrefixedNames(item.text);
+    protectedByKey.set(item.key, protectedItem.protectedNames);
+    return { key: item.key, text: protectedItem.text };
+  });
 
   const ai = await bestEffortAiScrubItems(aiCandidateItems);
   report.aiPerson += ai.personCount;
 
   for (const item of safeZoneItems) setPath(patient, item.key, item.text);
-  for (const item of ai.items) setPath(patient, item.key, item.text);
+  for (const item of ai.items) {
+    setPath(patient, item.key, restoreProtectedNames(item.text, protectedByKey.get(item.key) || {}));
+  }
 
   return { patient, report };
 }
