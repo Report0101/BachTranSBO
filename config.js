@@ -7,13 +7,7 @@ window.BACH_SBO_CONFIG = {
   adminEmail: "bachtran95@gmail.com"
 };
 
-// Temporary frontend workflow patch loaded after the main app bundle.
-// It keeps case-detail demographics editable, preserves form text before
-// secondary saves, and adds arrival-to-SBO metadata.
-window.addEventListener("DOMContentLoaded", () => {
-  if (document.querySelector('script[src="case_patch.js"]')) return;
-  const script = document.createElement("script");
-  script.src = "case_patch.js";
-  script.defer = true;
-  document.body.appendChild(script);
-});
+// Load the case-detail workflow extension as a parser-inserted script, not as
+// a late DOMContentLoaded injection. This avoids Safari/GitHub Pages timing and
+// cache issues where the extension file exists but never runs inside the app.
+document.write('<script src="case_patch.js?v=20260919-native"><\/script>');
