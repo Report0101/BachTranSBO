@@ -324,6 +324,8 @@ Approved/finalized summaries do not automatically rewrite the Skill.
 
 The system may analyze repeated doctor edits and propose Skill changes, but a new Skill version requires explicit approval.
 
+Writing-style learning is separate from Skill changes: the backend can generate an inactive style-profile candidate from recent Generated → Finalized pairs. A candidate affects generation only after explicit activation.
+
 ### Writing style and retrieval
 
 The permanent corpus consists of:
@@ -368,7 +370,7 @@ The server database enforces at most one ACTIVE shift per owner.
 
 The application restores the active shift and its cases from the backend after refresh or on another signed-in device.
 
-The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, and similar-case retrieval. Automated style learning, deployment verification, and broader production hardening remain.
+The current branch implements backend persistence, de-identification, Skill versioning, server-side summary generation, similar-case retrieval, and human-approved writing-style candidate generation. The AI-learning dashboard, Skill-improvement suggestions, deployment verification, and broader production hardening remain.
 
 ## 14. Planned modules
 
