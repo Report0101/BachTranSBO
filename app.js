@@ -232,6 +232,9 @@ function normalizeRadiologyEntry(entry) {
   if (["ultrahang", "uh", "ultrasound"].includes(legacyModality)) {
     entry.modality = "US";
   }
+  if (["ct", "native ct", "natív ct"].includes(legacyModality)) {
+    entry.modality = "Native CT";
+  }
   if (["kontrasztos ct", "contrast ct", "ct contrast"].includes(legacyModality)) {
     entry.modality = "Contrast CT";
   }
@@ -1038,7 +1041,7 @@ function renderRadiologyCards(patient) {
           "mellkas és has": "Chest + abdomen",
           "has és kismedence": "Abdomen + pelvis"
         };
-    const modalities = ["", "RTG", "US", "CT", "Contrast CT", "MR", "other"];
+    const modalities = ["", "RTG", "US", "Native CT", "Contrast CT", "MR", "other"];
     const modalityLabels = {
       "": uiLang === "hu" ? "— válasszon —" : "— select —",
       "other": uiLang === "hu" ? "Egyéb / specifikus" : "Other / specific"
@@ -1376,7 +1379,9 @@ async function generateSummary() {
     const retrievalSuffix = retrievalCount
       ? ` • ${retrievalCount} similar case(s)`
       : "";
-    flash(`Summary generated${skillSuffix}${retrievalSuffix}.`);
+    flash(uiLang === "hu"
+      ? `Összefoglaló elkészült${skillSuffix}${retrievalSuffix}.`
+      : `Summary generated${skillSuffix}${retrievalSuffix}.`);
   } catch (error) {
     handleBackendError(error);
   } finally {
@@ -1519,7 +1524,15 @@ function endShiftStep1() {
 }
 
 function endShiftStep2() {
-  modal(`
+  modal(uiLang === "hu" ? `
+    <h3>Műszak lezárásának megerősítése</h3>
+    <p>A megerősítéshez írja be: <b>END</b>.</p>
+    <input id="endInput" autocomplete="off" placeholder="END" />
+    <div class="modal-actions">
+      <button class="btn" data-close>MÉGSE</button>
+      <button class="btn danger" id="endFinal" disabled>MŰSZAK LEZÁRÁSA</button>
+    </div>
+  ` : `
     <h3>Confirm end shift</h3>
     <p>Type <b>END</b> to confirm.</p>
     <input id="endInput" autocomplete="off" placeholder="END" />
