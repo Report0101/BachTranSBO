@@ -147,6 +147,44 @@ async function syncTests(db: any, ownerId: string, patient: any) {
   }
 }
 
+function patientWorkflowBlockers(patient: any) {
+  const blockers: string[] = [];
+
+  const requiredNarrative = [
+    ["Complaint", patient.complaint, patient.complaintSkipped],
+    ["Patient history", patient.history, patient.historySkipped],
+    ["Physical examination", patient.physical, patient.physicalSkipped],
+    ["Therapy", patient.therapy, patient.therapySkipped],
+    ["Clinical course", patient.course, patient.courseSkipped],
+  ];
+
+  for (const [label, value, skipped] of requiredNarrative) {
+    if (!skipped && !String(value || "").trim()) blockers.push(String(label));
+  }
+
+  const testEntries = [
+    ...(patient.tests?.labs || []).map((entry: any, i: number) => ["Lab " + (i + 1), entry]),
+    ["EKG", patient.tests?.ekg],
+    ["AVG / VVG", patient.tests?.gas],
+    ...(patient.tests?.radiology || []).map((entry: any, i: number) => [
+      String(entry?.type || "").trim() || "Radiology " + (i + 1),
+      entry,
+    ]),
+    ...(patient.tests?.consultations || []).map((entry: any, i: number) => [
+      String(entry?.type || "").trim() || "Consultation " + (i + 1),
+      entry,
+    ]),
+  ];
+
+  for (const [label, entry] of testEntries) {
+    if (!entry) continue;
+    if (entry.mode === "notordered") continue;
+    if (!String(entry.text || "").trim()) blockers.push(String(label));
+  }
+
+  return blockers;
+}
+
 function snapshotTest(entry: any, category: string, sequence: number) {
   const mode = entry?.mode || "waiting";
   const text = String(entry?.text || "").trim();
@@ -458,6 +496,13 @@ async function finalizePatient(
   }
   if (!patient?.summaryFinalizedAt || !patient?.summaryFinalizedText) {
     throw new Error("Finalized summary is required.");
+  }
+
+  const blockers = patientWorkflowBlockers(patient);
+  if (blockers.length) {
+    throw new Error(
+      `Case cannot be finalized while orange fields remain: ${blockers.join(", ")}.`,
+    );
   }
 
   const now = new Date().toISOString();
