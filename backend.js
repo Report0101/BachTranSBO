@@ -400,7 +400,7 @@
 
   async function finalizePatient(shiftId, patient) {
     if (!shiftId || !patient?.summaryFinalizedAt || !patient.summaryFinalizedText) {
-      throw new Error("Finalized patient payload is incomplete.");
+      throw new Error("Finalized case payload is incomplete.");
     }
 
     return invokeAuthedFunction(

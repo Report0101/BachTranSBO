@@ -240,9 +240,9 @@ function corpusSnapshot(patient: any) {
     tests,
     others: patient.others || "",
     therapy: patient.therapy || "",
-    therapy_skipped: Boolean(patient.therapySkipped),
+    therapy_status: patient.therapySkipped ? "none" : "provided",
     clinical_course: patient.course || "",
-    clinical_course_skipped: Boolean(patient.courseSkipped),
+    clinical_course_status: patient.courseSkipped ? "none" : "provided",
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [],
     admission: {
@@ -394,7 +394,7 @@ async function savePatient(
   const { patient, report } = await deidentifyPatient(patientInput);
 
   if (!shiftId || patient?.shiftId !== shiftId) {
-    throw new Error("Patient/shift mismatch.");
+    throw new Error("Case/shift mismatch.");
   }
 
   const { data: shift, error: shiftError } = await db
@@ -492,7 +492,7 @@ async function finalizePatient(
   const { patient, report } = await deidentifyPatient(patientInput);
 
   if (!shiftId || patient?.shiftId !== shiftId) {
-    throw new Error("Patient/shift mismatch.");
+    throw new Error("Case/shift mismatch.");
   }
   if (!patient?.summaryFinalizedAt || !patient?.summaryFinalizedText) {
     throw new Error("Finalized summary is required.");
@@ -524,9 +524,9 @@ async function finalizePatient(
     diagnoses: patient.diagnoses || "",
     others: patient.others || "",
     therapy: patient.therapy || "",
-    therapy_status: patient.therapySkipped ? "none" : "provided",
+    therapy_skipped: Boolean(patient.therapySkipped),
     clinical_course: patient.course || "",
-    clinical_course_status: patient.courseSkipped ? "none" : "provided",
+    clinical_course_skipped: Boolean(patient.courseSkipped),
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [""],
     hospital: patient.hospital || "",
