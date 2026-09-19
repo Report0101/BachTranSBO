@@ -41,6 +41,12 @@ async function authenticatedUser(req: Request) {
 
   const { data, error } = await authClient.auth.getUser();
   if (error || !data.user) throw new Error("Invalid authenticated session.");
+
+  const ownerUserId = requireEnv("APP_OWNER_USER_ID");
+  if (data.user.id !== ownerUserId) {
+    throw new Error("This personal application is restricted to its owner account.");
+  }
+
   return data.user;
 }
 
