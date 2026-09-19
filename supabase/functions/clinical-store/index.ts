@@ -27,12 +27,27 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function supabaseNamedKey(variableName: string): string {
+  const raw = requireEnv(variableName);
+  let keys: Record<string, string>;
+
+  try {
+    keys = JSON.parse(raw);
+  } catch {
+    throw new Error(`${variableName} is not valid JSON.`);
+  }
+
+  const key = keys.default;
+  if (!key) throw new Error(`${variableName} has no default key.`);
+  return key;
+}
+
 async function authenticatedUser(req: Request) {
   const authorization = req.headers.get("Authorization");
   if (!authorization) throw new Error("Missing Authorization header.");
 
   const supabaseUrl = requireEnv("SUPABASE_URL");
-  const anonKey = requireEnv("SUPABASE_ANON_KEY");
+  const anonKey = supabaseNamedKey("SUPABASE_PUBLISHABLE_KEYS");
 
   const authClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
@@ -53,7 +68,7 @@ async function authenticatedUser(req: Request) {
 function serviceClient() {
   return createClient(
     requireEnv("SUPABASE_URL"),
-    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    supabaseNamedKey("SUPABASE_SECRET_KEYS"),
     { auth: { persistSession: false } },
   );
 }
