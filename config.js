@@ -14,6 +14,8 @@ window.BACH_SBO_CONFIG = {
   "use strict";
 
   const YEAR = new Date().getFullYear();
+  let lastLoadedCaseId = "";
+
   const OPTIONS = [
     ["", "— select —", "— válasszon —"],
     ["omsz", "OMSz transported", "OMSz szállította"],
@@ -30,6 +32,11 @@ window.BACH_SBO_CONFIG = {
     if (!Number.isInteger(y) || y < 1900 || y > YEAR) return "";
     return String(YEAR - y);
   };
+
+  function isEditingCaseDetails() {
+    const active = document.activeElement;
+    return Boolean(active && (active.closest?.("#inlineCaseEditor") || active.id === "fMainComplaint"));
+  }
 
   function db() {
     if (!window.supabase?.createClient) return null;
@@ -132,6 +139,9 @@ window.BACH_SBO_CONFIG = {
     const client = db();
     if (!id || !client) return;
 
+    // Do not overwrite a field while the doctor is actively editing it.
+    if (id === lastLoadedCaseId && isEditingCaseDetails()) return;
+
     const { data, error } = await client
       .from("cases")
       .select("id, sex, year_of_birth, main_complaint, arrival_mode, arrival_other")
@@ -145,18 +155,23 @@ window.BACH_SBO_CONFIG = {
     document.getElementById("iceArrival").value = data.arrival_mode || "";
     document.getElementById("iceArrivalOther").value = data.arrival_other || "";
     document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (data.arrival_mode || "") !== "other");
+    lastLoadedCaseId = id;
   }
 
   function rowUpdate(payload) {
     const row = selectedRow();
     if (!row) return;
     const tds = row.querySelectorAll("td");
+    const hasYob = Object.prototype.hasOwnProperty.call(payload, "year_of_birth");
+    const displayAge = hasYob ? ageFromYob(payload.year_of_birth) : (document.getElementById("iceAge")?.value || "");
+
     if (tds[1]) tds[1].textContent = payload.sex || "";
-    if (tds[2]) tds[2].textContent = ageFromYob(payload.year_of_birth) || "";
+    if (tds[2] && hasYob) tds[2].textContent = displayAge || "";
     if (tds[3]) tds[3].textContent = document.getElementById("fMainComplaint")?.value || tds[3].textContent || "";
+
     const subtitle = document.getElementById("recordSubtitle");
     if (subtitle) {
-      subtitle.textContent = `${payload.sex || "—"} • ${ageFromYob(payload.year_of_birth) || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
+      subtitle.textContent = `${payload.sex || "—"} • ${displayAge || "—"} y • ${document.getElementById("fMainComplaint")?.value || ""}`;
     }
   }
 
@@ -169,16 +184,19 @@ window.BACH_SBO_CONFIG = {
     const yobText = String(document.getElementById("iceYob")?.value || "").trim();
     const yobNum = Number(yobText);
     const validYob = Number.isInteger(yobNum) && yobNum >= 1900 && yobNum <= YEAR;
+    const partialYob = Boolean(yobText) && !validYob;
     document.getElementById("iceAge").value = validYob ? ageFromYob(yobNum) : "";
 
     const payload = {
       sex: document.getElementById("iceSex")?.value || null,
-      year_of_birth: validYob ? yobNum : null,
       main_complaint: document.getElementById("fMainComplaint")?.value || "",
       arrival_mode: arrival,
       arrival_other: arrival === "other" ? document.getElementById("iceArrivalOther")?.value || "" : "",
       updated_at: new Date().toISOString()
     };
+    if (!yobText || validYob) {
+      payload.year_of_birth = validYob ? yobNum : null;
+    }
 
     const st = document.getElementById("iceStatus");
     if (st) st.textContent = label("Saving case details…", "Esetadatok mentése…");
@@ -189,9 +207,9 @@ window.BACH_SBO_CONFIG = {
       return;
     }
     rowUpdate(payload);
-    if (st) st.textContent = validYob || !yobText
-      ? label("Case details saved.", "Esetadatok mentve.")
-      : label("Birth year must be between 1900 and current year.", "A születési évnek 1900 és az aktuális év között kell lennie.");
+    if (st) st.textContent = partialYob
+      ? label("Enter a 4-digit birth year between 1900 and current year.", "Adjon meg 4 jegyű születési évet 1900 és az aktuális év között.")
+      : label("Case details saved.", "Esetadatok mentve.");
   }
 
   async function deleteSelectedCase() {
@@ -241,7 +259,7 @@ window.BACH_SBO_CONFIG = {
         if (id === "iceYob" && age && yob) age.value = ageFromYob(yob.value);
         document.getElementById("iceArrivalOtherWrap")?.classList.toggle("hidden", (arrival?.value || "") !== "other");
         clearTimeout(window.__iceTimer);
-        window.__iceTimer = setTimeout(saveSelected, 300);
+        window.__iceTimer = setTimeout(saveSelected, 500);
       };
       el.addEventListener("input", handler);
       el.addEventListener("change", handler);
@@ -257,6 +275,11 @@ window.BACH_SBO_CONFIG = {
   function install() {
     if (window.__inlineCaseEditorInstalled) return;
     window.__inlineCaseEditorInstalled = true;
+
+    // Hungarian is the default working language for this app.
+    setTimeout(() => window.applyLanguage?.("hu"), 250);
+    setTimeout(() => window.applyLanguage?.("hu"), 900);
+
     new MutationObserver(() => {
       clearTimeout(window.__iceRefresh);
       window.__iceRefresh = setTimeout(() => { ensureUi(); loadSelected(); }, 80);
