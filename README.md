@@ -100,7 +100,11 @@ docs/
 
 Never place a Supabase secret/service-role key in browser code.
 
+## AI Learning dashboard
+
+The sidebar now includes **AI Learning**. It shows finalized corpus size, active Skill version, active/candidate style profiles, and Skill suggestions. Style candidates can be explicitly activated; Skill suggestions can be accepted/rejected for follow-up, but never modify the master Skill automatically.
+
 ## Next milestones
 
-1. AI learning dashboard for reviewing/activating style candidates and Skill suggestions.
-2. End-to-end deployment/testing against the real Supabase project.
+1. End-to-end deployment/testing against the real Supabase project.
+2. Broader production hardening and operational monitoring.
