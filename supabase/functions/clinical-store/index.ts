@@ -197,12 +197,23 @@ async function appendRevision(db: any, ownerId: string, patientInput: any) {
   if (caseError) throw caseError;
   if (!ownedCase) throw new Error("Case does not belong to authenticated user.");
 
+  const { data: summaryMeta, error: summaryMetaError } = await db
+    .from("summaries")
+    .select("model, skill_version")
+    .eq("case_id", patient.id)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (summaryMetaError) throw summaryMetaError;
+
   const { error } = await db.from("summary_revisions").insert({
     case_id: patient.id,
     owner_id: ownerId,
     generated_text: patient.summaryGeneratedText || patient.summary || "",
     finalized_text: patient.summaryFinalizedText,
     finalized_at: patient.summaryFinalizedAt,
+    model: summaryMeta?.model || null,
+    skill_version: summaryMeta?.skill_version || null,
     deidentification_version: "v1",
   });
 
