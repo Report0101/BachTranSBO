@@ -4,6 +4,7 @@ import {
   deidentifyState,
   reportTotal,
 } from "../_shared/deidentify.ts";
+import { openAiApiKey } from "../_shared/openai.ts";
 
 const allowedOrigin = Deno.env.get("APP_ORIGIN") || "*";
 
@@ -219,7 +220,7 @@ async function createEmbedding(input: string) {
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${requireEnv("OPENAI_API_KEY")}`,
+      "Authorization": `Bearer ${openAiApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
