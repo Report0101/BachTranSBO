@@ -17,7 +17,16 @@ function persist() {
 async function persistNow() {
   if (!backendReady || !state.shift) return { removed: 0, report: null };
 
-  const result = await window.BachSBOBackend.saveState(state);
+  const patient = patientById(selectedPatientId);
+  if (!patient) {
+    stateDirty = false;
+    return { removed: 0, report: null };
+  }
+
+  const result = await window.BachSBOBackend.savePatient(
+    state.shift.id,
+    patient
+  );
   stateDirty = false;
 
   if (result?.removed > 0) {
