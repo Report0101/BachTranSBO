@@ -30,3 +30,12 @@ Deno.test("rejects malformed keys", () => {
   }
   if (!failed) throw new Error("Malformed key should be rejected");
 });
+
+
+Deno.test("recovers Unicode dashes and non-breaking spaces inside a pasted key", () => {
+  const expected = "sk-proj-abcdefghijklmnopqrstuvwxyz_1234567890";
+  const raw = "sk\u2013proj\u2013abcdefghijklmnop\u00A0qrstuvwxyz_1234567890";
+  if (normalizeOpenAiApiKey(raw) !== expected) {
+    throw new Error("Failed to normalize pasted Unicode key");
+  }
+});
