@@ -20,6 +20,8 @@ Apply all migrations in order:
 6. `supabase/migrations/006_skill_suggestions.sql`
 7. `supabase/migrations/007_backend_skill_privacy.sql`
 8. `supabase/migrations/008_backend_service_grants.sql`
+9. `supabase/migrations/009_advisor_cleanup.sql`
+10. `supabase/migrations/010_preview_v5_clinical_fields.sql`
 
 The first migration creates:
 
@@ -43,6 +45,10 @@ The seventh migration removes browser access to master Skill instructions; only 
 
 The eighth migration makes the backend secret-key/service-role table grants explicit.
 
+The ninth migration addresses advisor findings and tightens database definitions.
+
+The tenth migration adds doctor-entered diagnoses plus structured radiology fields used by the preview-v5-compatible UI.
+
 Cases and finalized summaries are permanent. There is no 15-day deletion rule.
 
 ## 3. Configure browser credentials
@@ -61,7 +67,7 @@ Use the browser-safe publishable key. Never put a secret/service-role key in bro
 
 ## 4. Configure Auth
 
-The frontend uses Supabase email magic-link / OTP sign-in.
+The frontend uses the configured single-owner Supabase email/password account. Public signup should remain disabled.
 
 In Auth settings:
 
