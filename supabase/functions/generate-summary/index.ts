@@ -122,16 +122,38 @@ function workflowBlockers(caseRow: any, tests: any[]) {
   return blockers;
 }
 
+function arrivalLabel(mode: string, other: string) {
+  const normalized = String(mode || "").trim();
+  const otherText = String(other || "").trim();
+  const labels: Record<string, string> = {
+    omsz: "OMSz szállította",
+    esetkocsi: "Esetkocsi szállította",
+    walk_in: "saját lábán érkezett",
+    gp_referral: "HO beutalóval",
+    other: otherText || "egyéb",
+  };
+  return labels[normalized] || "";
+}
+
 function casePayload(caseRow: any, tests: any[]) {
   const age = caseRow.year_of_birth
     ? new Date().getUTCFullYear() - Number(caseRow.year_of_birth)
     : null;
+  const arrivalMode = String(caseRow.arrival_mode || "").trim();
+  const arrivalOther = String(caseRow.arrival_other || "").trim();
 
   return {
     case_id: caseRow.id,
     sex: caseRow.sex,
     age,
     main_complaint: caseRow.main_complaint,
+    arrival_to_sbo: arrivalMode
+      ? {
+          mode: arrivalMode,
+          label: arrivalLabel(arrivalMode, arrivalOther),
+          details: arrivalOther,
+        }
+      : null,
     complaint: caseRow.complaint,
     complaint_status: caseRow.complaint_skipped ? "none" : "provided",
     history: caseRow.history,
@@ -346,6 +368,7 @@ Deno.serve(async (req) => {
       "Use ONLY the de-identified clinical facts supplied below.",
       "Never invent a diagnosis, result, treatment, consultation, disposition, or chronology.",
       "If a fact is absent or a result is still waiting, do not fabricate it.",
+      "If arrival_to_sbo is present, include that arrival mode naturally in the Hungarian clinical narrative/anamnesis.",
       "Follow the SBO Documentation Skill instructions exactly.",
       "Return ONLY the documentation text, without commentary, markdown fences, or explanations.",
       "",
