@@ -1,0 +1,1399 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BachTranSBO — ER Command Center</title>
+<style>
+:root{
+  --bg:#f4f6f8;--panel:#fff;--line:#dfe4ea;--text:#1f2937;--muted:#6b7280;
+  --accent:#2563eb;--accent-soft:#eaf1ff;--ok:#166534;--ok-bg:#ecfdf5;
+  --warn:#9a3412;--warn-bg:#fff7ed;--gray:#4b5563;--gray-bg:#f3f4f6;
+  --danger:#ef4444;--shadow:0 10px 28px rgba(31,41,55,.08)
+}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit} button{cursor:pointer}
+.topbar{background:#111827;color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:18px;position:sticky;top:0;z-index:20}
+.brand{font-weight:800;font-size:19px}.shift-meta,.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#1f2937;font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:#22c55e}.metric{font-size:13px;color:#d1d5db}.metric b{color:#fff}
+.btn{border:0;border-radius:9px;padding:10px 14px;font-weight:750;background:#e5e7eb;color:#111827}
+.btn.primary{background:var(--accent);color:#fff}.btn.success{background:#16a34a;color:#fff}.btn.danger{background:var(--danger);color:#fff}
+.btn.small{padding:7px 10px;font-size:13px}.btn:disabled{opacity:.45;cursor:not-allowed}
+.layout{display:grid;grid-template-columns:190px 1fr;min-height:calc(100vh - 70px)}
+.sidebar{display:none!important;background:#fff;border-right:1px solid var(--line);padding:16px}.nav-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 8px 8px}
+.nav-item{width:100%;padding:11px 12px;margin:4px 0;border:0;border-radius:9px;background:transparent;text-align:left;font-weight:650;color:#374151}
+.nav-item.active{background:var(--accent-soft);color:var(--accent)}.nav-item.disabled{color:#9ca3af;background:#eef0f3}
+.main{padding:18px;max-width:1800px;margin:0 auto}.hidden{display:none!important}
+.empty{min-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center}
+.empty-card{width:min(520px,92vw);background:#fff;border:1px solid var(--line);border-radius:18px;padding:40px;text-align:center;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:400px 1fr;gap:18px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.card-h{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-b{padding:18px}.subtle{font-size:13px;color:var(--muted)}.mt16{margin-top:16px}
+.field{margin-bottom:14px}.field label{display:block;font-size:12px;font-weight:800;color:#4b5563;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{width:100%;border:1px solid #cfd5dd;border-radius:9px;padding:10px 11px;background:#fff;color:var(--text)}
+textarea{min-height:92px;resize:vertical}.inline{display:grid;grid-template-columns:1fr 1fr;gap:10px}.inline3{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:10px}
+.patient-table{width:100%;border-collapse:collapse;font-size:13px}.patient-table th,.patient-table td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.patient-table tr[data-id]{cursor:pointer}.patient-table tr[data-id]:hover{background:#f8fafc}.patient-table tr.selected{background:var(--accent-soft)}
+.wait-stack{display:flex;flex-wrap:wrap;gap:4px;max-width:170px}.wait-chip{padding:3px 6px;border-radius:999px;background:#ffedd5;color:var(--warn);font-size:10px;font-weight:800}
+.section{border-top:1px solid var(--line);padding-top:18px;margin-top:18px}.section:first-child{border-top:0;padding-top:0;margin-top:0}
+.section-title{font-size:15px;font-weight:850;margin-bottom:12px}.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:10px 12px;border-radius:10px;font-size:13px;margin-bottom:14px}
+.test-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 8px}.test-title{font-size:13px;font-weight:850;text-transform:uppercase;color:#374151}
+.test-card{border:1px solid #fdba74;border-radius:12px;padding:12px;margin-bottom:10px;background:var(--warn-bg)}
+.test-card.result{background:var(--ok-bg);border-color:#86efac}.test-card.notordered{background:var(--gray-bg);border-color:#d1d5db}
+.test-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}.test-name{font-weight:850}
+.test-status-dot{display:inline-block;width:11px;height:11px;border-radius:50%;flex:0 0 11px;box-shadow:0 0 0 3px rgba(148,163,184,.12)}.test-status-dot.waiting{background:#f59e0b}.test-status-dot.result{background:#22c55e}.test-status-dot.notordered{background:#9ca3af}
+.test-grid{display:grid;grid-template-columns:minmax(220px,1fr) 120px;gap:10px;align-items:start}.dynamic-grid{display:grid;grid-template-columns:170px minmax(220px,1fr) 120px;gap:10px;align-items:start}.radiology-grid{display:grid;grid-template-columns:150px 140px minmax(220px,1fr) 120px;gap:10px;align-items:start}.radiology-grid.has-other{grid-template-columns:150px 140px minmax(180px,1fr) minmax(220px,1fr) 120px}.card-head-actions{display:flex;align-items:center;gap:8px}.delete-test{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.badge{display:inline-block;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:850}.badge.active{background:#fff7ed;color:#9a3412}.badge.done{background:#ecfdf5;color:#166534}.badge.closed{background:#dcfce7;color:#14532d}.learning-note{font-size:12px;color:#475569;margin:8px 0 12px}
+.recs{display:flex;flex-direction:column;gap:8px}.rec-row{display:grid;grid-template-columns:28px 1fr 34px;gap:8px;align-items:center}
+.summary-box{min-height:240px}.sticky-actions{position:sticky;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);padding:12px 0 0;margin-top:18px;display:flex;justify-content:flex-end}
+.modal-wrap{position:fixed;inset:0;background:rgba(17,24,39,.58);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{width:min(480px,92vw);background:#fff;border-radius:14px;padding:22px;box-shadow:var(--shadow)}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+@media(max-width:1150px){.layout{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line)}.grid2{grid-template-columns:1fr}}
+@media(max-width:760px){.inline,.inline3,.test-grid,.dynamic-grid,.radiology-grid{grid-template-columns:1fr}.main{padding:12px}.topbar{align-items:flex-start;flex-direction:column}}
+
+.backend-preview-card{margin:12px 0 14px;padding:12px 14px;border:1px solid #dbeafe;border-radius:12px;background:#f8fbff}
+.backend-preview-title{font-weight:800;margin-bottom:10px}
+.backend-preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.backend-preview-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:2px}
+.backend-preview-value{font-size:13px;font-weight:600;color:#0f172a}
+@media(max-width:760px){.backend-preview-grid{grid-template-columns:1fr}}
+
+
+.lang-toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+.lang-btn{border:0;background:#fff;padding:7px 10px;font-size:12px;font-weight:800;color:#64748b;cursor:pointer}
+.lang-btn.active{background:var(--accent);color:#fff}
+.api-dot{display:inline-block;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
+.api-dot.offline{background:#94a3b8}
+.api-dot.online{background:#22c55e}
+.api-dot.error{background:#ef4444}
+
+
+.mode-dots{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 4px}
+.mode-dot-btn{width:18px;height:18px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:0 0 0 2px transparent;transition:.15s}
+.mode-dot-btn.waiting{background:#f59e0b}
+.mode-dot-btn.notordered{background:#9ca3af}.mode-dot-btn.result{background:#22c55e;cursor:default}
+.mode-dot-btn.active{border-color:#fff;box-shadow:0 0 0 2px #334155}
+.mode-dot-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div><div class="brand">ER COMMAND CENTER</div><div class="shift-meta" id="shiftMeta"></div></div>
+  <div class="toolbar" style="gap:8px;align-items:center">
+    <div class="lang-toggle" role="group" aria-label="Language">
+      <button class="lang-btn active" id="langEnBtn" type="button">EN</button>
+      <button class="lang-btn" id="langHuBtn" type="button">HU</button>
+    </div>
+    <span id="headerApiStatus" class="api-dot offline" title="Backend API status"></span>
+    <div id="topActions"></div>
+  </div>
+</header>
+<div class="layout">
+<aside class="sidebar">
+  <div class="nav-title">Workspace</div>
+  <button class="nav-item active">Patients ●</button>
+  <div class="nav-title">Future modules</div>
+  <button class="nav-item disabled">Analytics — PLANNED</button>
+  <button class="nav-item disabled">Archive — PLANNED</button>
+  <button class="nav-item disabled">Integrations — PLANNED</button>
+</aside>
+<main class="main">
+<section id="noShiftView" class="empty">
+  <div class="empty-card"><h1 data-i18n="noActiveShift">No active shift</h1><p data-i18n="oneShiftOnly">Only one shift can be active at a time.</p><button class="btn primary" id="startShiftBtn" data-i18n="startShift">START SHIFT</button></div>
+</section>
+<section id="patientsView" class="hidden">
+<div class="grid2">
+<div>
+  <div class="card">
+    <div class="card-h"><div><h3 data-i18n="importPatient">Import new patient</h3><div class="subtle" data-i18n="autoId">ID automatically starts from 01 in each shift.</div></div></div>
+    <div class="card-b">
+      <div class="inline3">
+        <div class="field"><label>ID</label><input id="newId" disabled></div>
+        <div class="field"><label data-i18n="sex">Sex</label><select id="newSex"><option value="">—</option><option>M</option><option>F</option></select></div>
+        <div class="field"><label data-i18n="yob">Year of birth</label><input id="newYob" inputmode="numeric" maxlength="4" placeholder="1955 or 55"></div>
+      </div>
+      <div class="field"><label data-i18n="mainComplaint">Main complaint</label><input id="newComplaint" placeholder="Chest pain"></div>
+      <button class="btn primary" id="addPatientBtn" data-i18n="addPatient">ADD PATIENT</button>
+    </div>
+  </div>
+  <div class="card mt16">
+    <div class="card-h"><div><h3 data-i18n="patientRecord">Patient record</h3><div class="subtle" data-i18n="waitingOnly">Status shows tests currently waiting for result.</div></div></div>
+    <div class="card-b" style="overflow:auto">
+      <table class="patient-table"><thead><tr><th>ID</th><th data-i18n="sex">Sex</th><th data-i18n="age">Age</th><th data-i18n="mainComplaint">Main complaint</th><th data-i18n="status">Status</th></tr></thead><tbody id="patientTbody"></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-h"><div><h3 id="recordTitle">Patient detail</h3><div class="subtle" id="recordSubtitle">Chọn một bệnh nhân bên trái.</div></div><span id="patientStatusBadge"></span></div>
+  <div class="card-b">
+    <div id="noPatientSelected" class="subtle">No patient selected.</div>
+    <form id="patientForm" class="hidden" onsubmit="return false">
+      <div class="section"><div class="section-title" data-i18n="clinical">1. Clinical</div>
+        <div class="field"><label data-i18n="mainComplaint">Main complaint</label><input id="fMainComplaint"></div>
+        <div class="field"><label data-i18n="complaint">Complaint</label><textarea id="fComplaint" placeholder="Manual input or paste from Heidi..."></textarea></div>
+        <div class="field"><label data-i18n="patientHistory">Patient history</label><textarea id="fHistory"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="testResultsStatus">2. Test results and status</div>
+        <div class="info" id="testStatusHelp">Default = orange dot (Waiting). Grey dot = Not ordered. Save result = green dot.</div>
+        <div class="field"><label data-i18n="physicalExam">Physical examination</label><textarea id="fPhysical"></textarea></div>
+        <div class="test-toolbar"><div class="test-title" data-i18n="lab">Lab</div><button class="btn small" type="button" id="addLabBtn" data-i18n="addLab">+ ADD LAB</button></div><div id="labCards"></div>
+        <div class="test-toolbar"><div class="test-title">EKG</div></div><div id="ekgCard"></div>
+        <div class="test-toolbar"><div class="test-title">AVG / VVG</div></div><div id="gasCard"></div>
+        <div class="test-toolbar"><div><div class="test-title" data-i18n="radiology">Radiology</div><div class="subtle">Body part + RTG / ultrahang / CT / MR, hoặc Other để nhập test cụ thể.</div></div><button class="btn small" type="button" id="addRadiologyBtn" data-i18n="addRadiology">+ ADD RADIOLOGY</button></div><div id="radiologyCards"></div>
+        <div class="test-toolbar"><div class="test-title" data-i18n="consultations">Consultations</div><button class="btn small" type="button" id="addConsultBtn" data-i18n="addConsultation">+ ADD CONSULTATION</button></div><div id="consultCards"></div>
+        <div class="field"><label data-i18n="others">Others</label><textarea id="fOthers"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="whatHappens">3. What happens</div>
+        <div class="field"><label data-i18n="therapy">Therapy</label><textarea id="fTherapy"></textarea></div>
+        <div class="field"><label data-i18n="clinicalCourse">Clinical course / patient status change</label><textarea id="fCourse"></textarea></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="finalDecision">4. Final decision / disposition</div>
+        <div class="field">
+          <label data-i18n="diagnoses">Diagnoses</label>
+          <textarea id="fDiagnoses" placeholder="Egy diagnózis soronként vagy pontosvesszővel. Magyar vagy latin megnevezés.&#10;Pl.: akut dekompenzált szívelégtelenség&#10;hypoxaemiás légzési elégtelenség&#10;permanens pitvarfibrilláció"></textarea>
+          <div class="subtle" style="margin-top:6px">A Summary elején külön Latin diagnózislista jelenik meg. A rendszer nem állít fel új diagnózist a vizsgálati eredményekből.</div>
+        </div>
+        <div class="field"><label data-i18n="disposition">Disposition</label><select id="fDisposition"><option value="">Active / in progress</option><option value="discharged">Discharged</option><option value="admitted">Admitted / submitted</option><option value="other">Other</option></select></div>
+        <div id="dischargedFields" class="hidden"><div class="field"><label>Recommendation and plan at home</label><div class="recs" id="recList"></div><button class="btn small" type="button" id="addRecBtn">+ Add recommendation</button></div></div>
+        <div id="admittedFields" class="hidden"><div class="inline"><div class="field"><label>Hospital</label><input id="fHospital"></div><div class="field"><label>Ward / department</label><input id="fWard"></div></div><div class="field"><label>Accepting physician</label><input id="fPhysician"></div><div class="field"><label>Additional note</label><textarea id="fAdmissionNote"></textarea></div></div>
+        <div id="otherFields" class="hidden"><div class="field"><label>Outcome</label><input id="fOtherOutcome" placeholder="Transfer, LAMA, death..."></div><div class="field"><label>Details</label><textarea id="fOtherDetails"></textarea></div></div>
+      </div>
+      <div class="section"><div class="section-title" data-i18n="caseSummary">5. Case summary</div>
+        <div class="info"><b>SBO Documentation AI — LLM backend</b><br>
+        A Generate gomb a teljes strukturált esetet, a SBO master rules-t és legfeljebb 5 korábbi finalized gold reference-t küld a beállított AI backendnek. A browser többé nem próbál if/else szabályokkal epikrízist írni.</div>
+        <div class="field">
+          <label data-i18n="backendUrl">AI backend URL</label>
+          <input id="aiBackendUrl" placeholder="https://YOUR-BACKEND.example.com/api/sbo-summary">
+          <div class="subtle" style="margin-top:6px">Local prototype default: https://YOUR-BACKEND.example.com/api/sbo-summary</div>
+        </div>
+        <div id="aiStatus" class="learning-note"></div>
+<div class="backend-preview-card">
+  <div class="backend-preview-title" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+    <span>Backend / Google Drive</span>
+    <div class="toolbar" style="gap:6px"><button class="btn small" type="button" id="testApiBtn">TEST API</button><button class="btn small" type="button" id="previewBackendBtn">PREVIEW FLOW</button></div>
+  </div>
+  <div class="backend-preview-grid">
+    <div><div class="backend-preview-label">Summary engine</div><div class="backend-preview-value">SBO Documentation AI (server-side)</div></div>
+    <div><div class="backend-preview-label">Finalized resource store</div><div class="backend-preview-value">Google Drive / SBO_AI/finalized</div></div>
+    <div><div class="backend-preview-label">Gold references</div><div class="backend-preview-value"><span id="previewGoldCount">0</span> available locally</div></div>
+    <div><div class="backend-preview-label">Learning source</div><div class="backend-preview-value">Finalized summaries only</div></div>
+  </div>
+  <div class="subtle" style="margin-top:8px">
+    Preview: Finalize sẽ đồng bộ gold reference lên Google Drive; Undo Finalize sẽ xoá reference đó khỏi Drive.
+  </div>
+</div>
+        <div id="styleMemoryStatus" class="learning-note"></div>
+        <div class="toolbar"><button class="btn primary" id="generateSummaryBtn" type="button" data-i18n="generateSummary">Summary</button></div>
+        <div id="summaryStatus" style="margin:10px 0"></div>
+        <div class="field"><label data-i18n="summaryEditable">Summary — editable</label><textarea id="fSummary" class="summary-box"></textarea></div>
+        <div class="toolbar">
+          <button class="btn success" id="finalizeSummaryBtn" type="button" data-i18n="finalizeSummary">FINALIZE SUMMARY</button>
+          <button class="btn hidden" id="undoFinalizeBtn" type="button" data-i18n="undoFinalize">UNDO FINALIZE</button>
+          <button class="btn danger hidden" id="closeCaseBtn" type="button" data-i18n="closeCase">CLOSE CASE</button>
+          <button class="btn primary hidden" id="reopenCaseBtn" type="button" data-i18n="reopenCase">REOPEN CASE</button>
+        </div>
+      </div>
+      <div class="sticky-actions"><button class="btn" id="savePatientBtn" type="button" data-i18n="savePatient">SAVE PATIENT</button></div>
+    </form>
+  </div>
+</div>
+</div>
+</section>
+</main>
+</div>
+<div id="modalHost"></div>
+<script>
+const STORAGE_KEY="er_command_center_v6",AI_CONFIG_KEY="er_command_center_ai_config_v1",RETENTION_DAYS=15;
+let state=loadState(),selectedPatientId=null;
+rebuildStyleProfile();
+const UI_LANG_KEY="er_command_center_ui_lang_v1";
+const I18N={
+  en:{
+    noActiveShift:"No active shift",
+    oneShiftOnly:"Only one shift can be active at a time.",
+    startShift:"START SHIFT",
+    importPatient:"Import new patient",
+    autoId:"ID automatically starts from 01 in each shift.",
+    sex:"Sex",
+    yob:"Year of birth",
+    mainComplaint:"Main complaint",
+    addPatient:"ADD PATIENT",
+    patientRecord:"Patient record",
+    waitingOnly:"Status shows tests currently waiting for result.",
+    age:"Age",status:"Status",
+    clinical:"1. Clinical",
+    tests:"2. Tests",
+    testResultsStatus:"2. Test results and status",
+    physicalExam:"Physical examination",
+    lab:"Lab",
+    radiology:"Radiology",
+    consultations:"Consultations",
+    others:"Others",
+    whatHappens:"3. What happens",
+    therapy:"Therapy",
+    clinicalCourse:"Clinical course / patient status change",
+    diagnoses:"Diagnoses",
+    disposition:"Disposition",
+    complaint:"Complaint",
+    patientHistory:"Patient history",
+    treatmentCourse:"3. What happens / treatment",
+    finalDecision:"4. Final decision / disposition",
+    caseSummary:"5. Case summary",
+    backendUrl:"AI backend URL",
+    generateSummary:"Summary",
+    summaryEditable:"Summary — editable",
+    finalizeSummary:"FINALIZE SUMMARY",
+    undoFinalize:"UNDO FINALIZE",
+    closeCase:"CLOSE CASE",
+    reopenCase:"REOPEN CASE",
+    savePatient:"SAVE PATIENT",
+    addLab:"+ ADD LAB",
+    addRadiology:"+ ADD RADIOLOGY",
+    addConsultation:"+ ADD CONSULTATION"
+  },
+  hu:{
+    noActiveShift:"Nincs aktív műszak",
+    oneShiftOnly:"Egyszerre csak egy aktív műszak lehet.",
+    startShift:"MŰSZAK INDÍTÁSA",
+    importPatient:"Új beteg felvétele",
+    autoId:"A betegazonosító minden műszakban 01-től indul.",
+    sex:"Nem",
+    yob:"Születési év",
+    mainComplaint:"Fő panasz",
+    addPatient:"BETEG HOZZÁADÁSA",
+    patientRecord:"Beteglista",
+    waitingOnly:"A státusz csak a folyamatban lévő vizsgálatokat mutatja.",
+    age:"Életkor",status:"Státusz",
+    clinical:"1. Klinikai adatok",
+    tests:"2. Vizsgálatok",
+    testResultsStatus:"2. Vizsgálati eredmények és státusz",
+    physicalExam:"Fizikális vizsgálat",
+    lab:"Labor",
+    radiology:"Radiológia",
+    consultations:"Konzíliumok",
+    others:"Egyéb",
+    whatHappens:"3. Terápia és klinikai lefolyás",
+    therapy:"Terápia",
+    clinicalCourse:"Klinikai lefolyás / állapotváltozás",
+    diagnoses:"Diagnózisok",
+    disposition:"Diszpozíció",
+    complaint:"Jelen panaszok",
+    patientHistory:"Anamnézis",
+    treatmentCourse:"3. Terápia / klinikai lefolyás",
+    finalDecision:"4. Végső döntés / diszpozíció",
+    caseSummary:"5. Esetösszefoglaló",
+    backendUrl:"AI backend URL",
+    generateSummary:"Összefoglaló",
+    summaryEditable:"Összefoglaló — szerkeszthető",
+    finalizeSummary:"ÖSSZEFOGLALÓ VÉGLEGESÍTÉSE",
+    undoFinalize:"VÉGLEGESÍTÉS VISSZAVONÁSA",
+    closeCase:"ESET LEZÁRÁSA",
+    reopenCase:"ESET ÚJRANYITÁSA",
+    savePatient:"BETEG MENTÉSE",
+    addLab:"+ LABOR",
+    addRadiology:"+ RADIOLÓGIA",
+    addConsultation:"+ KONZÍLIUM"
+  }
+};
+let uiLang=localStorage.getItem(UI_LANG_KEY)||"en";
+function applyLanguage(lang){
+  uiLang=I18N[lang]?lang:"en";
+  localStorage.setItem(UI_LANG_KEY,uiLang);
+  document.documentElement.lang=uiLang==="hu"?"hu":"en";
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key=el.dataset.i18n;
+    if(I18N[uiLang][key])el.textContent=I18N[uiLang][key];
+  });
+  const help=document.getElementById("testStatusHelp");
+  if(help){
+    help.textContent=uiLang==="hu"
+      ?"Narancssárga pont = eredményre vár. Szürke pont = nem történt rendelés. Mentett eredmény = zöld pont."
+      :"Orange dot = waiting for result. Grey dot = not ordered. Saved result = green dot.";
+  }
+  const disp=document.getElementById("fDisposition");
+  if(disp){
+    const labels=uiLang==="hu"
+      ?["Aktív / folyamatban","Otthonába bocsátva","Osztályos felvétel / áthelyezés","Egyéb"]
+      :["Active / in progress","Discharged","Admitted / transferred","Other"];
+    [...disp.options].forEach((o,i)=>{if(labels[i])o.textContent=labels[i]});
+  }
+  const en=document.getElementById("langEnBtn"),hu=document.getElementById("langHuBtn");
+  if(en)en.classList.toggle("active",uiLang==="en");
+  if(hu)hu.classList.toggle("active",uiLang==="hu");
+  renderHeader();
+}
+function getHealthUrl(){
+  const raw=(document.getElementById("aiBackendUrl")?.value||loadAiConfig().backendUrl||"").trim();
+  if(!raw)return "";
+  try{
+    const u=new URL(raw);
+    u.pathname="/health";
+    u.search="";
+    u.hash="";
+    return u.toString();
+  }catch{return ""}
+}
+async function testBackendApi(){
+  saveAiConfig();
+  const health=getHealthUrl();
+  const dot=document.getElementById("headerApiStatus");
+  const btn=document.getElementById("testApiBtn");
+  if(!health){
+    setAiStatus("Invalid backend URL.","error");
+    return;
+  }
+  if(btn){btn.disabled=true;btn.textContent="TESTING…";}
+  if(dot){dot.className="api-dot offline";}
+  setAiStatus(`Testing ${health} …`);
+  try{
+    const r=await fetch(health,{method:"GET"});
+    let data={};
+    try{data=await r.json()}catch{}
+    if(!r.ok)throw new Error(data.detail||data.error||`HTTP ${r.status}`);
+    if(dot){dot.className="api-dot online";dot.title="Backend online";}
+    setAiStatus(`Backend online${data.model_configured===false?" • model not configured":""}`,"ok");
+  }catch(err){
+    if(dot){dot.className="api-dot error";dot.title="Backend unavailable";}
+    setAiStatus(`Backend test failed: ${err.message}`,"error");
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent="TEST API";}
+  }
+}
+function loadAiConfig(){
+  try{
+    return JSON.parse(localStorage.getItem(AI_CONFIG_KEY))||{backendUrl:"https://YOUR-BACKEND.example.com/api/sbo-summary"};
+  }catch{
+    return{backendUrl:"https://YOUR-BACKEND.example.com/api/sbo-summary"};
+  }
+}
+function saveAiConfig(){
+  const url=(document.getElementById("aiBackendUrl")?.value||"").trim();
+  localStorage.setItem(AI_CONFIG_KEY,JSON.stringify({backendUrl:url}));
+}
+function renderAiConfig(){
+  const input=document.getElementById("aiBackendUrl");
+  if(!input)return;
+  const cfg=loadAiConfig();
+  input.value=cfg.backendUrl||"https://YOUR-BACKEND.example.com/api/sbo-summary";
+  input.onchange=saveAiConfig;
+  input.onblur=saveAiConfig;
+}
+function setAiStatus(message,kind=""){
+  const el=document.getElementById("aiStatus");
+  if(!el)return;
+  el.textContent=message;
+  el.style.color=kind==="error"?"#b91c1c":kind==="ok"?"#166534":"#475569";
+}
+function defaultStyleProfile(){
+  return{
+    version:1,
+    finalizedSamples:0,
+    editedSamples:0,
+    phraseVotes:{},
+    preferred:{},
+    updatedAt:null
+  };
+}
+function defaultState(){return{shift:null,patients:[],references:[],styleProfile:defaultStyleProfile()}}
+function nowIso(){return new Date().toISOString()}
+function loadState(){try{return purgeExpired(JSON.parse(localStorage.getItem(STORAGE_KEY))||defaultState())}catch{return defaultState()}}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function purgeExpired(s){
+  const c=Date.now()-RETENTION_DAYS*86400000;
+  s.patients=(s.patients||[]).filter(p=>new Date(p.createdAt).getTime()>=c);
+  s.references=(s.references||[]).filter(r=>new Date(r.createdAt).getTime()>=c);
+  s.styleProfile=s.styleProfile||defaultStyleProfile();
+  s.patients.forEach(p=>{
+    if(p.tests?.radiology)p.tests.radiology.forEach(normalizeRadiologyEntry);
+    if(!p.caseStatus)p.caseStatus=p.closedAt?"closed":"active";
+    if(typeof p.reopenCount!=="number")p.reopenCount=0;
+  });
+  return s;
+}
+function fmtTime(x){return x?new Date(x).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):""}
+function normalizeYob(y){
+  const s=String(y??"").trim();
+  if(/^\d{2}$/.test(s)){
+    const n=Number(s), current2=new Date().getFullYear()%100;
+    return String(n<=current2?2000+n:1900+n);
+  }
+  return s;
+}
+function age(y){
+  const year=parseInt(normalizeYob(y),10);
+  return year?new Date().getFullYear()-year:"";
+}
+function pts(){return state.shift?state.patients.filter(p=>p.shiftId===state.shift.id):[]}
+function nextId(){return String(pts().length+1).padStart(2,"0")}
+function patient(id=selectedPatientId){return state.patients.find(p=>p.id===id)}
+function isClosed(p){return p?.caseStatus==="closed"||!!p?.closedAt}
+function completed(p){return isClosed(p)}
+function entry(type=""){return{type,mode:"waiting",text:"",savedText:""}}
+function radiologyEntry(){
+  return{type:"",bodyPart:"",modality:"",otherTest:"",mode:"waiting",text:"",savedText:""};
+}
+function normalizeRadiologyEntry(e){
+  if(!e)return radiologyEntry();
+  if(e.bodyPart===undefined)e.bodyPart="";
+  if(e.modality===undefined)e.modality="";
+  if(e.otherTest===undefined)e.otherTest="";
+  // Backward compatibility: old free-text radiology type becomes Other.
+  if(!e.bodyPart&&!e.modality&&!e.otherTest&&(e.type||"").trim()){
+    e.modality="other";
+    e.otherTest=(e.type||"").trim();
+  }
+  return e;
+}
+function radiologyType(e){
+  normalizeRadiologyEntry(e);
+  const body=(e.bodyPart||"").trim();
+  const modality=(e.modality||"").trim();
+  const other=(e.otherTest||"").trim();
+  if(modality==="other"){
+    if(body&&other)return `${body} — ${other}`;
+    return other||body||"Radiology";
+  }
+  return [body,modality].filter(Boolean).join(" ").trim()||"Radiology";
+}
+function eStatus(e){if(e.mode==="notordered")return"notordered";if((e.savedText||"").trim()&&(e.text||"").trim()===(e.savedText||"").trim())return"result";return"waiting"}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function attr(v){return esc(v).replace(/`/g,"&#096;")}
+function waits(p){const a=[];p.tests.labs.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(`Lab ${i+1}`));if(eStatus(p.tests.ekg)==="waiting")a.push("EKG");if(eStatus(p.tests.gas)==="waiting")a.push(/\bVVG\b/i.test(p.tests.gas.text||"")?"VVG":"AVG");p.tests.radiology.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(radiologyType(e)||`Radiology ${i+1}`));p.tests.consultations.forEach((e,i)=>eStatus(e)==="waiting"&&a.push(e.type?.trim()||`Consultation ${i+1}`));return a}
+function renderHeader(){
+  const m=document.getElementById("shiftMeta"),a=document.getElementById("topActions");
+  m.innerHTML="";a.innerHTML="";
+  const hu=uiLang==="hu";
+  if(!state.shift){
+    m.innerHTML=`<span class="metric">${hu?"Nincs aktív műszak":"No active shift"}</span>`;
+    return;
+  }
+  const p=pts(),d=p.filter(completed).length;
+  m.innerHTML=`<span class="pill"><span class="dot"></span> ${hu?"AKTÍV MŰSZAK":"SHIFT ACTIVE"} • ${hu?"Kezdés":"Started"} ${fmtTime(state.shift.startedAt)}</span><span class="metric">${hu?"Betegek":"Patients"} <b>${p.length}</b></span><span class="metric">${hu?"Aktív":"Active"} <b>${p.length-d}</b></span><span class="metric">${hu?"Lezárt":"Completed"} <b>${d}</b></span>`;
+  a.innerHTML=`<button class="btn danger" id="endShiftBtn">${hu?"MŰSZAK LEZÁRÁSA":"END SHIFT"}</button>`;
+  document.getElementById("endShiftBtn").onclick=endShiftStep1;
+}
+function renderApp(){renderHeader();noShiftView.classList.toggle("hidden",!!state.shift);patientsView.classList.toggle("hidden",!state.shift);if(state.shift)renderPatients()}
+function patientTableStatus(p){
+  if(isClosed(p))return '<span class="badge closed">CASE CLOSED</span>';
+  const w=waits(p);
+  return w.length?`<div class="wait-stack">${w.map(x=>`<span class="wait-chip">${esc(x)}</span>`).join("")}</div>`:"—";
+}
+function renderPatients(){
+  newId.value=nextId();
+  patientTbody.innerHTML="";
+  pts().forEach(p=>{
+    const tr=document.createElement("tr");
+    tr.dataset.id=p.id;
+    if(p.id===selectedPatientId)tr.classList.add("selected");
+    tr.innerHTML=`<td>${p.localId}</td><td>${p.sex}</td><td>${age(p.yob)}</td><td>${esc(p.mainComplaint)}</td><td>${patientTableStatus(p)}</td>`;
+    tr.onclick=()=>{selectedPatientId=p.id;renderPatients()};
+    patientTbody.appendChild(tr);
+  });
+  if(selectedPatientId&&patient()){
+    loadPatientForm();
+  }else{
+    patientForm.classList.add("hidden");
+    noPatientSelected.classList.remove("hidden");
+    recordTitle.textContent="Patient detail";
+    recordSubtitle.textContent="Chọn một bệnh nhân bên trái.";
+    patientStatusBadge.innerHTML="";
+  }
+}
+function updateStatusCell(p=patient()){
+  if(!p)return;
+  const row=document.querySelector(`tr[data-id="${p.id}"]`);
+  if(!row)return;
+  row.children[4].innerHTML=patientTableStatus(p);
+}
+function addPatient(){
+  if(!state.shift)return;
+  const sex=newSex.value,yob=normalizeYob(newYob.value),mc=newComplaint.value.trim();
+  const currentYear=new Date().getFullYear();
+  if(!sex||!yob||!mc)return alert("Please enter Sex, Year of birth and Main complaint.");
+  if(!/^\d{4}$/.test(yob)||Number(yob)<1900||Number(yob)>currentYear){
+    return alert("Year of birth must be 4 digits or a 2-digit shorthand, e.g. 55 = 1955.");
+  }
+  newYob.value=yob;const p={id:crypto.randomUUID(),shiftId:state.shift.id,localId:nextId(),sex,yob,mainComplaint:mc,complaint:"",history:"",physical:"",tests:{labs:[entry()],ekg:entry(),gas:entry(),radiology:[radiologyEntry()],consultations:[entry()]},others:"",therapy:"",course:"",diagnoses:"",disposition:"",recommendations:[""],hospital:"",ward:"",physician:"",admissionNote:"",otherOutcome:"",otherDetails:"",summary:"",summaryGeneratedAt:null,summaryFinalizedText:"",summaryFinalizedAt:null,caseStatus:"active",closedAt:null,reopenedAt:null,reopenCount:0,createdAt:nowIso(),updatedAt:nowIso()};state.patients.push(p);selectedPatientId=p.id;newSex.value=newYob.value=newComplaint.value="";persist();renderApp()}
+function loadPatientForm(){
+  const p=patient();
+  if(!p)return;
+  patientForm.classList.remove("hidden");
+  noPatientSelected.classList.add("hidden");
+  recordTitle.textContent=`Patient ${p.localId}`;
+  recordSubtitle.textContent=`${p.sex} • ${age(p.yob)} y • ${p.mainComplaint}`;
+  patientStatusBadge.innerHTML=isClosed(p)
+    ?'<span class="badge closed">CASE CLOSED</span>'
+    :'<span class="badge active">ACTIVE / IN PROGRESS</span>';
+
+  const v={
+    fMainComplaint:p.mainComplaint,fComplaint:p.complaint,fHistory:p.history,
+    fPhysical:p.physical,fOthers:p.others,fTherapy:p.therapy,fCourse:p.course,
+    fDiagnoses:p.diagnoses||"",fDisposition:p.disposition,fHospital:p.hospital,
+    fWard:p.ward,fPhysician:p.physician,fAdmissionNote:p.admissionNote,
+    fOtherOutcome:p.otherOutcome,fOtherDetails:p.otherDetails,fSummary:p.summary
+  };
+  Object.entries(v).forEach(([id,val])=>document.getElementById(id).value=val||"");
+  renderTests(p);
+  renderRecs(p);
+  dispositionUI();
+  renderSummaryStatus(p);
+  renderStyleMemory();
+  renderBackendPreview();
+  renderAiConfig();
+  applyCaseLock(p);
+}
+function badge(s){
+  const title=s==="result"?"Result available":s==="notordered"?"Not ordered":"Waiting for result";
+  return `<span class="test-status-dot ${s}" title="${title}" aria-label="${title}"></span>`;
+}
+function deleteTestEntry(group,index){
+  const p=patient();
+  if(!p)return;
+  const labels={labs:"Lab",radiology:"Radiology",consultations:"Consultation"};
+  const item=labels[group]||"item";
+  if(!confirm(`Delete this ${item}?`))return;
+  p.tests[group].splice(index,1);
+  persist();
+  renderTests(p);
+  updateStatusCell(p);
+  renderSummaryStatus(p);
+  flash(`${item} deleted.`);
+}
+
+function modeDots(e){
+  const s=eStatus(e);
+  return `<div class="mode-dots" data-mode-dots>
+    <button type="button" class="mode-dot-btn waiting ${s==="waiting"?"active":""}" data-mode-choice="waiting" title="Waiting for result" aria-label="Waiting for result"></button>
+    <button type="button" class="mode-dot-btn notordered ${s==="notordered"?"active":""}" data-mode-choice="notordered" title="Not ordered" aria-label="Not ordered"></button>
+    <span class="mode-dot-btn result ${s==="result"?"active":""}" title="Result available" aria-label="Result available"></span>
+  </div>`;
+}
+
+function simpleCard(label,e,key,isGas=false,onDelete=null){
+  const s=eStatus(e),d=document.createElement("div");
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
+    <div class="test-head">
+      <span class="test-name">${label}</span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        ${onDelete?'<button class="btn small delete-test" type="button" data-delete>DELETE</button>':""}
+      </div>
+    </div>
+    <div class="test-grid">
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="${label} result...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
+  if(onDelete)d.querySelector("[data-delete]").onclick=onDelete;
+  wire(d,e,key,isGas);
+  return d;
+}
+
+function dynamicCard(label,e,key,ph,onDelete=null){
+  const s=eStatus(e),d=document.createElement("div");
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
+    <div class="test-head">
+      <span class="test-name">${label}</span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        ${onDelete?'<button class="btn small delete-test" type="button" data-delete>DELETE</button>':""}
+      </div>
+    </div>
+    <div class="dynamic-grid">
+      <input data-type value="${attr(e.type||"")}" placeholder="${ph}">
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="Result / note...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
+  const t=d.querySelector("[data-type]");
+  t.oninput=()=>{e.type=t.value;persist();updateStatusCell()};
+  if(onDelete)d.querySelector("[data-delete]").onclick=onDelete;
+  wire(d,e,key,false);
+  return d;
+}
+
+function radiologyCard(e,index){
+  normalizeRadiologyEntry(e);
+  const key=`rad-${index}`,s=eStatus(e),d=document.createElement("div");
+  const bodyParts=["","koponya","mellkas","has","mellkas és has","has és kismedence"];
+  const modalities=["","RTG","ultrahang","CT","MR","other"];
+  const options=(arr,current,labels={})=>arr.map(v=>`<option value="${attr(v)}"${v===current?" selected":""}>${labels[v]||v||"— select —"}</option>`).join("");
+
+  d.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+  d.innerHTML=`
+    <div class="test-head">
+      <span class="test-name">Radiology ${index+1} <span class="subtle" data-rad-label>${esc(radiologyType(e))}</span></span>
+      <div class="card-head-actions">
+        ${modeDots(e)}
+        <button class="btn small delete-test" type="button" data-delete>DELETE</button>
+      </div>
+    </div>
+    <div class="radiology-grid${e.modality==="other"?" has-other":""}">
+      <select data-body>
+        ${options(bodyParts,e.bodyPart)}
+      </select>
+      <select data-modality>
+        ${options(modalities,e.modality,{other:"Other / specific"})}
+      </select>
+      <input data-other class="${e.modality==="other"?"":"hidden"}" value="${attr(e.otherTest||"")}" placeholder="Specific test e.g. CT angiographia">
+      <textarea data-text ${e.mode==="notordered"?"disabled":""} placeholder="Radiology result...">${esc(e.text)}</textarea>
+      <button class="btn small primary" type="button" data-save ${!e.text.trim()||e.mode==="notordered"||s==="result"?"disabled":""}>SAVE RESULT</button>
+    </div>`;
+
+  const body=d.querySelector("[data-body]");
+  const modality=d.querySelector("[data-modality]");
+  const other=d.querySelector("[data-other]");
+  const label=d.querySelector("[data-rad-label]");
+
+  const updateType=()=>{
+    e.bodyPart=body.value;
+    e.modality=modality.value;
+    e.otherTest=other.value;
+    e.type=radiologyType(e);
+    const isOther=e.modality==="other";
+    other.classList.toggle("hidden",!isOther);
+    d.querySelector(".radiology-grid").classList.toggle("has-other",isOther);
+    label.textContent=e.type;
+    persist();
+    updateStatusCell();
+  };
+  body.onchange=updateType;
+  modality.onchange=updateType;
+  other.oninput=updateType;
+  d.querySelector("[data-delete]").onclick=()=>deleteTestEntry("radiology",index);
+  wire(d,e,key,false);
+  return d;
+}
+
+function wire(card,e,key,isGas){
+  const modeButtons=[...card.querySelectorAll("[data-mode-choice]")];
+  const txt=card.querySelector("[data-text]");
+  const save=card.querySelector("[data-save]");
+
+  const refresh=()=>{
+    const s=eStatus(e);
+    card.className=`test-card ${s==="result"?"result":s==="notordered"?"notordered":""}`;
+    txt.disabled=e.mode==="notordered";
+    save.disabled=!e.text.trim()||e.mode==="notordered"||s==="result";
+
+    modeButtons.forEach(btn=>{
+      const choice=btn.dataset.modeChoice;
+      btn.classList.toggle("active",choice===s);
+    });
+    const resultDot=card.querySelector(".mode-dot-btn.result");
+    if(resultDot)resultDot.classList.toggle("active",s==="result");
+
+    if(isGas){
+      const name=card.querySelector(".test-name");
+      if(name)name.textContent=/\bVVG\b/i.test(e.text||"")?"VVG":"AVG";
+    }
+  };
+
+  modeButtons.forEach(btn=>{
+    btn.onclick=()=>{
+      e.mode=btn.dataset.modeChoice==="notordered"?"notordered":"waiting";
+      persist();
+      refresh();
+      updateStatusCell();
+      renderSummaryStatus(patient());
+    };
+  });
+
+  txt.oninput=()=>{
+    e.text=txt.value;
+    persist();
+    refresh();
+    updateStatusCell();
+  };
+
+  txt.addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"&&!ev.shiftKey){
+      ev.preventDefault();
+      e.text=txt.value;
+      if(e.mode!=="notordered"&&e.text.trim())save.click();
+    }
+  });
+
+  save.onclick=()=>{
+    if(!e.text.trim()||e.mode==="notordered")return;
+    e.savedText=e.text;
+    e.mode="waiting";
+    persist();
+    refresh();
+    updateStatusCell();
+    renderSummaryStatus(patient());
+    flash("Result saved — RESULT AVAILABLE.");
+  };
+}
+function renderTests(p){
+  labCards.innerHTML="";
+  p.tests.labs.forEach((e,i)=>{
+    labCards.appendChild(simpleCard(`Lab ${i+1}`,e,`lab-${i}`,false,()=>deleteTestEntry("labs",i)));
+  });
+  addLabBtn.disabled=false;
+
+  ekgCard.innerHTML="";
+  ekgCard.appendChild(simpleCard("EKG",p.tests.ekg,"ekg"));
+
+  gasCard.innerHTML="";
+  gasCard.appendChild(simpleCard(/\bVVG\b/i.test(p.tests.gas.text||"")?"VVG":"AVG",p.tests.gas,"gas",true));
+
+  radiologyCards.innerHTML="";
+  p.tests.radiology.forEach((e,i)=>radiologyCards.appendChild(radiologyCard(e,i)));
+
+  consultCards.innerHTML="";
+  p.tests.consultations.forEach((e,i)=>{
+    consultCards.appendChild(dynamicCard(`Consultation ${i+1}`,e,`con-${i}`,"Type e.g. Cardiology, Neurology",()=>deleteTestEntry("consultations",i)));
+  });
+}
+
+function addLab(){
+  const p=patient();
+  if(!p)return;
+  p.tests.labs.push(entry());
+  persist();renderTests(p);updateStatusCell();
+}
+function addRadiology(){
+  const p=patient();
+  if(!p)return;
+  p.tests.radiology.push(radiologyEntry());
+  persist();renderTests(p);updateStatusCell();
+}
+function addConsult(){
+  const p=patient();
+  if(!p)return;
+  p.tests.consultations.push(entry());
+  persist();renderTests(p);updateStatusCell();
+}
+function collect(){const p=patient();if(!p)return null;p.mainComplaint=fMainComplaint.value;p.complaint=fComplaint.value;p.history=fHistory.value;p.physical=fPhysical.value;p.others=fOthers.value;p.therapy=fTherapy.value;p.course=fCourse.value;p.diagnoses=fDiagnoses.value;p.disposition=fDisposition.value;p.hospital=fHospital.value;p.ward=fWard.value;p.physician=fPhysician.value;p.admissionNote=fAdmissionNote.value;p.otherOutcome=fOtherOutcome.value;p.otherDetails=fOtherDetails.value;p.summary=fSummary.value;p.recommendations=[...document.querySelectorAll("[data-rec]")].map(x=>x.value);p.updatedAt=nowIso();return p}
+function savePatient(){if(collect()){persist();renderApp();flash("Patient saved.")}}
+function dispositionUI(){const v=fDisposition.value;dischargedFields.classList.toggle("hidden",v!=="discharged");admittedFields.classList.toggle("hidden",v!=="admitted");otherFields.classList.toggle("hidden",v!=="other")}
+function renderRecs(p){recList.innerHTML="";(p.recommendations?.length?p.recommendations:[""]).forEach((x,i)=>{const r=document.createElement("div");r.className="rec-row";r.innerHTML=`<div>${i+1}.</div><input data-rec value="${attr(x)}"><button class="btn small" type="button" data-del="${i}">×</button>`;r.querySelector("[data-del]").onclick=()=>{collect();p.recommendations.splice(i,1);if(!p.recommendations.length)p.recommendations=[""];persist();renderRecs(p)};recList.appendChild(r)})}
+function addRec(){collect();const p=patient();p.recommendations.push("");persist();renderRecs(p)}
+function voteStyle(key,value){
+  if(!value)return;
+  const sp=state.styleProfile||(state.styleProfile=defaultStyleProfile());
+  sp.phraseVotes[key]=sp.phraseVotes[key]||{};
+  sp.phraseVotes[key][value]=(sp.phraseVotes[key][value]||0)+1;
+  const entries=Object.entries(sp.phraseVotes[key]).sort((a,b)=>b[1]-a[1]);
+  sp.preferred[key]=entries[0]?.[0]||value;
+}
+function styleChoice(key,fallback){
+  return state.styleProfile?.preferred?.[key]||fallback;
+}
+function learnFromFinalized(finalText,generatedText=""){
+  const t=String(finalText||"");
+  const sp=state.styleProfile||(state.styleProfile=defaultStyleProfile());
+  sp.finalizedSamples=(sp.finalizedSamples||0)+1;
+  if(generatedText&&generatedText.trim()!==t.trim())sp.editedSamples=(sp.editedSamples||0)+1;
+
+  if(/Anamnéziséből kiemelendő:/i.test(t))voteStyle("historyPhrase","Anamnéziséből kiemelendő:");
+  else if(/Anamnézisében/i.test(t))voteStyle("historyPhrase","Anamnézisében");
+
+  if(/Érkezésekor/i.test(t))voteStyle("examPhrase","Érkezésekor");
+  else if(/Fizikális vizsgálata során/i.test(t))voteStyle("examPhrase","Fizikális vizsgálata során");
+
+  if(/Laboratóriumi vizsgálata során/i.test(t))voteStyle("labPhrase","Laboratóriumi vizsgálata során");
+  if(/Megfigyelése során/i.test(t))voteStyle("coursePhrase","Megfigyelése során");
+  if(/Az SBO-n/i.test(t))voteStyle("therapyPhrase","Az SBO-n");
+  else if(/\bSBO-n\b/i.test(t))voteStyle("therapyPhrase","SBO-n");
+
+  if(/További kezelése, ellátás céljából a beteget/i.test(t))
+    voteStyle("transferPhrase","További kezelése, ellátás céljából a beteget");
+
+  const body=t.split(/\n\s*\n/);
+  if(body.length>=3)voteStyle("paragraphStyle","multi");
+  else voteStyle("paragraphStyle","compact");
+
+  sp.updatedAt=nowIso();
+}
+function rebuildStyleProfile(){
+  const refs=(state.references||[]).filter(r=>r.source==="finalized_summary");
+  state.styleProfile=defaultStyleProfile();
+  refs.forEach(r=>learnFromFinalized(r.text||"",r.generatedText||""));
+  state.styleProfile.updatedAt=refs.length?nowIso():null;
+}
+function previewBackendFlow(){
+  alert(
+    "Backend flow preview:\n\n"+
+    "1. Generate SBO Summary → POST /api/summary/generate\n"+
+    "2. Backend sends current case + SBO master rules + selected gold references to the LLM\n"+
+    "3. Doctor edits the returned epikrízis\n"+
+    "4. Finalize → POST /api/summary/finalize\n"+
+    "5. Finalized summary is stored as a Google Drive gold reference\n"+
+    "6. Undo Finalize → DELETE finalized reference\n"+
+    "7. Close Case → Completed; Reopen remains available"
+  );
+}
+function renderBackendPreview(){
+  const el=document.getElementById("previewGoldCount");
+  if(!el)return;
+  const refs=(state.references||[]).filter(r=>r.source==="finalized_summary");
+  el.textContent=String(refs.length);
+}
+
+function renderStyleMemory(){
+  const el=document.getElementById("styleMemoryStatus");
+  if(!el)return;
+  const sp=state.styleProfile||defaultStyleProfile();
+  const n=sp.finalizedSamples||0, e=sp.editedSamples||0;
+  el.textContent=n
+    ?`Style memory: ${n} finalized gold reference${n===1?"":"s"} • ${e} physician-edited before finalize`
+    :"Style memory: no finalized gold reference yet.";
+}
+function splitHistoryAndMedication(raw){
+  const s=String(raw||"").trim();
+  const m=s.match(/(?:^|\s)(?:Otthon|Rendszeresen|Gyógyszerei)\s*:\s*/i);
+  if(!m)return{history:s,meds:""};
+  const idx=m.index??0;
+  return{history:s.slice(0,idx).trim().replace(/[;,]\s*$/,""),meds:s.slice(idx+m[0].length).trim()};
+}
+function joinHu(items){
+  const a=items.filter(Boolean);
+  if(a.length<=1)return a[0]||"";
+  return a.slice(0,-1).join(", ")+" és "+a[a.length-1];
+}
+function historyInflected(raw){
+  const tokens=String(raw||"").split(/[,;]/).map(x=>x.trim()).filter(Boolean);
+  if(!tokens.length)return"";
+  const map=x=>{
+    const k=x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if(/\b(ht|hypertoni|hypertens)/.test(k))return"hypertoniában";
+    if(/(2-es|2\.?\s*tipus|type 2|typus 2).*(dm|diabetes)|\bdm2\b|\bt2dm\b/.test(k))return"2-es típusú diabetes mellitusban";
+    if(/permanens.*(pf|pitvarfibr)/.test(k))return"permanens pitvarfibrillációban";
+    if(/\bhfpef\b|megtartott.*ejekcio/.test(k))return"megtartott ejekciós frakciójú szívelégtelenségben";
+    if(/\bhfref\b|csokkent.*ejekcio/.test(k))return"csökkent ejekciós frakciójú szívelégtelenségben";
+    if(/hyperlipid|dyslipid/.test(k))return"hyperlipidaemiában";
+    if(/\bckd\b|kronikus.*vese/.test(k))return"krónikus vesebetegségben";
+    return null;
+  };
+  const converted=tokens.map(map);
+  return converted.every(Boolean)?joinHu(converted):"";
+}
+function clinicalSentence(raw){
+  const s=String(raw||"").trim();
+  return ensurePeriod(s.replace(/^Érkezés\s*:\s*/i,""));
+}
+function labSentence(raw){
+  const s=String(raw||"").trim();
+  if(!s)return"";
+  if(/[.!?]$/.test(s)&&/\b(volt|igazolódott|mutatott|észlelhető)\b/i.test(s))return s;
+  return `${styleChoice("labPhrase","Laboratóriumi vizsgálata során")} ${s} igazolódott.`;
+}
+function gasSentence(raw,label){
+  let s=String(raw||"").trim();
+  if(!s)return"";
+  const prefix=s.match(/^(.{1,45}?(?:O2|O₂|oxigén).{0,25}mellett)\s*:\s*(.+)$/i);
+  if(prefix)return `A ${prefix[1].trim()} készült vérgázvizsgálat ${lowerInitial(ensurePeriod(prefix[2]))}`;
+  return `A ${label} vizsgálat ${lowerInitial(ensurePeriod(s))}`;
+}
+function radiologySentence(type,raw){
+  const t=String(type||"").trim(),s=String(raw||"").trim();
+  if(!s)return"";
+  if(/cxr|mellkas.*röntgen|chest.*x-?ray/i.test(t))
+    return `A mellkasröntgenen ${lowerInitial(ensurePeriod(s))}`;
+  if(/\bct\b/i.test(t))return `A ${t} vizsgálat ${lowerInitial(ensurePeriod(s))}`;
+  if(/uh|ultra|sono/i.test(t))return `Az ultrahangvizsgálat ${lowerInitial(ensurePeriod(s))}`;
+  return `${t||"Radiológiai vizsgálat"} során ${lowerInitial(ensurePeriod(s))}`;
+}
+function consultSentence(type,raw){
+  const t=String(type||"Konzílium").trim(),s=String(raw||"").trim();
+  if(!s)return"";
+  if(/pci.*ajánl|pci.*javas/i.test(s))
+    return `${t} konzílium történt, mely PCI elvégzését javasolta.`;
+  return `${t} konzílium során ${lowerInitial(ensurePeriod(s))}`;
+}
+function normalizeTherapyItem(item){
+  let s=String(item||"").trim();
+  if(!s)return"";
+  s=s.replace(/(\d)(mg|g|NE)\b/gi,"$1 $2");
+  if(/oxig[eé]n/i.test(s)){
+    const flow=s.match(/(\d+(?:[.,]\d+)?)\s*l\/min/i)?.[1];
+    if(flow)return `${flow} l/min áramlással nasalis oxigénkezelésben részesült`;
+    return `${s} kezelésben részesült`;
+  }
+  s=s.replace(/\biv\.?\b/gi,"intravénásan").replace(/\bpo\.?\b/gi,"per os");
+  s=s.replace(/\bfurosemid\b/i,"furosemidet")
+     .replace(/\bclopidogrel\b/i,"clopidogrelt")
+     .replace(/\bna-?heparin\b/i,"Na-heparint")
+     .replace(/\bASA\b/g,"ASA-t");
+  return s;
+}
+function therapySentence(raw){
+  const items=String(raw||"").split(/[,;\n]+/).map(normalizeTherapyItem).filter(Boolean);
+  if(!items.length)return"";
+  const hasTreatment=items.some(x=>/kezelésben részesült/i.test(x));
+  const meds=items.filter(x=>!/kezelésben részesült/i.test(x));
+  const treatments=items.filter(x=>/kezelésben részesült/i.test(x));
+  let out="";
+  if(meds.length)out=`${styleChoice("therapyPhrase","Az SBO-n")} ${joinHu(meds)} kapott.`;
+  if(treatments.length)out+=(out?" ":"")+ensurePeriod(joinHu(treatments));
+  return out;
+}
+
+function testPayload(e,label=""){
+  return{
+    label,
+    status:eStatus(e),
+    result:eStatus(e)==="result"?(e.savedText||"").trim():"",
+    currentText:(e.text||"").trim()
+  };
+}
+function buildSboAiPayload(p){
+  const refs=(state.references||[])
+    .filter(r=>r.source==="finalized_summary"&&r.patientId!==p.id)
+    .slice(-5)
+    .map(r=>r.text)
+    .filter(Boolean);
+
+  return{
+    patient:{
+      localId:p.localId,
+      sex:p.sex,
+      yearOfBirth:normalizeYob(p.yob),
+      age:age(p.yob),
+      mainComplaint:p.mainComplaint||"",
+      complaint:p.complaint||"",
+      history:p.history||"",
+      physical:p.physical||"",
+      diagnoses:String(p.diagnoses||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean),
+      tests:{
+        labs:(p.tests.labs||[]).map((e,i)=>testPayload(e,`Lab ${i+1}`)),
+        ekg:testPayload(p.tests.ekg,"EKG"),
+        gas:testPayload(p.tests.gas,/\bVVG\b/i.test(p.tests.gas?.text||"")?"VVG":"AVG"),
+        radiology:(p.tests.radiology||[]).map((e,i)=>({
+          ...testPayload(e,radiologyType(e)||`Radiology ${i+1}`),
+          bodyPart:e.bodyPart||"",
+          modality:e.modality||"",
+          specificTest:e.otherTest||""
+        })),
+        consultations:(p.tests.consultations||[]).map((e,i)=>({
+          ...testPayload(e,e.type?.trim()||`Consultation ${i+1}`),
+          specialty:e.type||""
+        }))
+      },
+      others:p.others||"",
+      therapy:p.therapy||"",
+      clinicalCourse:p.course||"",
+      disposition:p.disposition||"",
+      recommendations:(p.recommendations||[]).filter(x=>String(x).trim()),
+      admission:{
+        hospital:p.hospital||"",
+        ward:p.ward||"",
+        acceptingPhysician:p.physician||"",
+        note:p.admissionNote||""
+      },
+      otherOutcome:p.otherOutcome||"",
+      otherDetails:p.otherDetails||""
+    },
+    styleProfile:state.styleProfile||defaultStyleProfile(),
+    goldReferences:refs
+  };
+}
+
+function latinDiagnosis(raw){
+  const s=String(raw||"").trim();
+  const k=s.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[–—]/g,"-");
+
+  const rules=[
+    [/akut.*dekompenz.*szivel|acute.*decompens.*heart failure|adhf/, "Decompensatio cordis acuta"],
+    [/hypoxaem.*legzesi.*elegtel|hypox.*respiratory.*failure/, "Insufficientia respiratoria hypoxaemica"],
+    [/permanens.*pitvarfibr|permanent.*atrial fibr|permanens.*pf\b/, "Fibrillatio atriorum permanens"],
+    [/pitvarfibr|atrial fibr|\bpf\b/, "Fibrillatio atriorum"],
+    [/hypertoni|hypertens|\bhtn\b/, "Hypertensio arterialis"],
+    [/(2-es|2\.? tipus|type 2|typus 2).*(diabetes|dm)|\bdm2\b|\bt2dm\b/, "Diabetes mellitus typus 2"],
+    [/hyperlipid|dyslipid/, "Hyperlipidaemia"],
+    [/\bstemi\b|st-elev.*myocard|st elev.*infarct/, "Infarctus myocardii acutus cum elevatione segmenti ST"],
+    [/\bnstemi\b|non-st.*myocard|st elevacio nelkuli.*infarct/, "Infarctus myocardii acutus sine elevatione segmenti ST"],
+    [/akut.*coronaria|acute coronary|\bacs\b/, "Syndroma coronarium acutum"],
+    [/tudo.*oedema|pulmonary edema|pulmonary oedema/, "Oedema pulmonum"],
+    [/pleural.*folyad|pleural effusion|hydrothorax/, "Hydrothorax"],
+    [/chronic.*kidney|kronikus.*vese|ckd/, "Morbus renalis chronicus"]
+  ];
+  for(const [re,out] of rules) if(re.test(k)) return out;
+  return s;
+}
+
+function diagnosisList(p){
+  const raw=String(p.diagnoses||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean);
+  const seen=new Set(), out=[];
+  raw.forEach(x=>{
+    const y=latinDiagnosis(x);
+    const key=y.toLowerCase();
+    if(!seen.has(key)){seen.add(key);out.push(y);}
+  });
+  return out;
+}
+
+function ensurePeriod(s){
+  s=String(s||"").trim();
+  if(!s)return "";
+  return /[.!?]$/.test(s)?s:s+".";
+}
+
+function lowerInitial(s){
+  s=String(s||"").trim();
+  if(!s)return s;
+  return s.charAt(0).toLowerCase()+s.slice(1);
+}
+
+function testSentence(label,value){
+  const v=ensurePeriod(value);
+  if(!v)return "";
+  const l=(label||"").trim();
+  const low=l.toLowerCase();
+
+  if(/^ekg$/i.test(l)) return `Az EKG ${lowerInitial(v)}`;
+  if(/^(avg|vvg)$/i.test(l)) return `A ${l} vizsgálat ${lowerInitial(v)}`;
+  if(/cxr|mellkas.*rontgen|chest.*x-?ray/i.test(low)) return `A mellkasröntgenen ${lowerInitial(v)}`;
+  if(/\bct\b|ct-|ct /i.test(low)) return `A ${l} vizsgálat ${lowerInitial(v)}`;
+  if(/uh|ultra|sonograph/i.test(low)) return `Az ultrahangvizsgálat ${lowerInitial(v)}`;
+  return `${l}: ${v}`;
+}
+
+function sboDocumentationSummary(p){
+  const dx=diagnosisList(p);
+  const paragraphs=[];
+  const sexword=p.sex==="F"?"nőbeteget":"férfibeteget";
+  const main=(p.mainComplaint||"").trim();
+  const complaint=(p.complaint||"").trim();
+  const parsedHx=splitHistoryAndMedication(p.history||"");
+  const inflected=historyInflected(parsedHx.history);
+
+  let intro=`A ${age(p.yob)} éves`;
+  if(inflected)intro+=`, ismert ${inflected} szenvedő`;
+  intro+=` ${sexword}`;
+
+  const omsz=/\bOMSz\b/i.test(complaint);
+  if(omsz){
+    intro+=` az OMSz szállította SBO-nkra`;
+    const clean=complaint.replace(/\bOMSz\b\s*(hozta|szállította)?\s*/i,"").trim();
+    if(clean)intro+=`. ${ensurePeriod(clean)}`;
+    else intro+=".";
+  }else{
+    intro+=main?` ${main} miatt vizsgáltuk SBO-n.`:" SBO-n vizsgáltuk.";
+    if(complaint)intro+=` ${ensurePeriod(complaint)}`;
+  }
+
+  if(parsedHx.history&&!inflected){
+    intro+=` ${styleChoice("historyPhrase","Anamnéziséből kiemelendő:")} ${ensurePeriod(parsedHx.history)}`;
+  }
+  if(parsedHx.meds){
+    intro+=` Rendszeresen ${ensurePeriod(parsedHx.meds.replace(/[.]$/,""))} szed.`;
+  }
+  paragraphs.push(intro.replace(/\s+/g," ").trim());
+
+  const exam=[];
+  if((p.physical||"").trim()){
+    const phys=clinicalSentence(p.physical);
+    if(/^(RR|P\b|SpO|T\b|vérnyomás|pulzus)/i.test(phys)){
+      exam.push(`${styleChoice("examPhrase","Érkezésekor")} ${phys}`);
+    }else{
+      exam.push(`${styleChoice("examPhrase","Fizikális vizsgálata során")} ${lowerInitial(phys)}`);
+    }
+  }
+
+  const savedLabs=p.tests.labs.filter(e=>eStatus(e)==="result").map(e=>e.savedText.trim()).filter(Boolean);
+  if(savedLabs.length)exam.push(labSentence(savedLabs.join("; ")));
+
+  if(eStatus(p.tests.ekg)==="result")
+    exam.push(`Az EKG ${lowerInitial(ensurePeriod(p.tests.ekg.savedText))}`);
+
+  if(eStatus(p.tests.gas)==="result"){
+    const gasLabel=/\bVVG\b/i.test(p.tests.gas.text||"")?"VVG":"vérgáz";
+    exam.push(gasSentence(p.tests.gas.savedText,gasLabel));
+  }
+
+  p.tests.radiology.forEach((e,i)=>{
+    if(eStatus(e)==="result")exam.push(radiologySentence(radiologyType(e)||`Radiológiai vizsgálat ${i+1}`,e.savedText));
+  });
+
+  p.tests.consultations.forEach((e,i)=>{
+    if(eStatus(e)==="result")exam.push(consultSentence(e.type?.trim()||`Konzílium ${i+1}`,e.savedText));
+  });
+
+  if((p.others||"").trim())exam.push(ensurePeriod(p.others));
+  if(exam.length)paragraphs.push(exam.join(" ").replace(/\s+/g," ").trim());
+
+  const therapy=therapySentence(p.therapy||"");
+  const course=(p.course||"").trim()
+    ?`${styleChoice("coursePhrase","Megfigyelése során")} ${lowerInitial(ensurePeriod(p.course.trim()))}`
+    :"";
+  if(therapy||course)paragraphs.push([therapy,course].filter(Boolean).join(" "));
+
+  if(p.disposition==="admitted"){
+    const ward=(p.ward||"").trim(),hospital=(p.hospital||"").trim();
+    let last="";
+    const lead=styleChoice("transferPhrase","További kezelése, ellátás céljából a beteget");
+    if(/belgy/i.test(ward)&&!hospital)last=`${lead} a kórházunk belgyógyászati osztályára helyezzük át.`;
+    else if(ward&&!hospital)last=`${lead} a kórházunk ${ward} osztályára helyezzük át.`;
+    else if(hospital&&ward)last=`${lead} a ${hospital} ${ward} osztályára helyezzük át.`;
+    else if(hospital)last=`${lead} a ${hospital} intézménybe helyezzük át.`;
+    else last=`${lead} fekvőbeteg osztályra helyezzük át.`;
+    if((p.admissionNote||"").trim())last+=` ${ensurePeriod(p.admissionNote)}`;
+    paragraphs.push(last);
+  }else if(p.disposition==="discharged"){
+    let last="A beteget otthonába bocsátjuk.";
+    const recs=(p.recommendations||[]).map(x=>x.trim()).filter(Boolean);
+    if(recs.length)last+=`\n\nJavaslat:\n${recs.map((x,i)=>`${i+1}. ${ensurePeriod(x)}`).join("\n")}`;
+    paragraphs.push(last);
+  }else if(p.disposition==="other"){
+    const last=[p.otherOutcome,p.otherDetails].map(ensurePeriod).filter(Boolean).join(" ");
+    if(last)paragraphs.push(last);
+  }
+
+  const sep=styleChoice("paragraphStyle","multi")==="compact"?"\n":"\n\n";
+  const body=paragraphs.filter(Boolean).join(sep);
+  return dx.length?`${dx.join("\n\n")}\n\n${body}`:body;
+}
+
+async function generateSummary(){
+  const p=collect();
+  if(!p)return;
+
+  saveAiConfig();
+  const cfg=loadAiConfig();
+  const url=(cfg.backendUrl||"").trim();
+  if(!url){
+    alert("AI backend URL is empty.");
+    return;
+  }
+
+  generateSummaryBtn.disabled=true;
+  const original=generateSummaryBtn.textContent;
+  generateSummaryBtn.textContent="GENERATING…";
+  setAiStatus("SBO Documentation AI is generating the epikrízis…");
+
+  try{
+    const response=await fetch(url,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(buildSboAiPayload(p))
+    });
+
+    let data={};
+    try{data=await response.json()}catch{}
+
+    if(!response.ok){
+      throw new Error(data.detail||data.error||`Backend error ${response.status}`);
+    }
+    if(!data.summary||!String(data.summary).trim()){
+      throw new Error("Backend returned an empty summary.");
+    }
+
+    p.summary=String(data.summary).trim();
+    p.lastGeneratedSummary=p.summary;
+    p.summaryGeneratedAt=nowIso();
+    p.lastAiMeta=data.meta||null;
+    fSummary.value=p.summary;
+    persist();
+    renderSummaryStatus(p);
+    setAiStatus(
+      `Generated by LLM${data.meta?.model?` • ${data.meta.model}`:""}${data.meta?.goldReferencesUsed!==undefined?` • ${data.meta.goldReferencesUsed} gold references`:""}`,
+      "ok"
+    );
+    flash("SBO Summary generated by AI backend.");
+  }catch(err){
+    console.error(err);
+    setAiStatus(`AI backend error: ${err.message}`,"error");
+    alert(
+      "SBO Documentation AI backend is unavailable or returned an error.\n\n"+
+      err.message+
+      "\n\nThis version intentionally does not fall back to the low-quality local rule generator."
+    );
+  }finally{
+    generateSummaryBtn.disabled=false;
+    generateSummaryBtn.textContent=original;
+  }
+}
+
+async function finalizeSummary(){
+  const p=collect();
+  if(!p)return;
+  const t=p.summary.trim();
+  if(!t)return alert("Summary is empty.");
+
+  p.summaryFinalizedText=t;
+  p.summaryFinalizedAt=nowIso();
+  p.summaryFinalizedClinicalFingerprint=clinicalFingerprint(p);
+  p.updatedAt=nowIso();
+
+  state.references=(state.references||[]).filter(r=>!(
+    r.source==="finalized_summary" &&
+    r.patientId===p.id &&
+    r.shiftId===p.shiftId
+  ));
+  state.references.push({
+    id:crypto.randomUUID(),
+    patientId:p.id,
+    shiftId:p.shiftId,
+    text:t,
+    generatedText:p.lastGeneratedSummary||"",
+    createdAt:nowIso(),
+    source:"finalized_summary"
+  });
+
+  rebuildStyleProfile();
+  persist();
+
+  try{
+    await navigator.clipboard.writeText(t);
+    flash("Summary finalized, copied, and learned as a gold reference.");
+  }catch{
+    flash("Summary finalized and learned as a gold reference.");
+  }
+  renderApp();
+}
+function clinicalFingerprint(p){
+  return JSON.stringify({
+    mainComplaint:p.mainComplaint||"",
+    complaint:p.complaint||"",
+    history:p.history||"",
+    physical:p.physical||"",
+    tests:p.tests||{},
+    others:p.others||"",
+    therapy:p.therapy||"",
+    course:p.course||"",
+    diagnoses:p.diagnoses||"",
+    disposition:p.disposition||"",
+    recommendations:p.recommendations||[],
+    hospital:p.hospital||"",
+    ward:p.ward||"",
+    physician:p.physician||"",
+    admissionNote:p.admissionNote||"",
+    otherOutcome:p.otherOutcome||"",
+    otherDetails:p.otherDetails||""
+  });
+}
+function clinicalChangedAfterFinalize(p){
+  return !!p.summaryFinalizedAt &&
+    !!p.summaryFinalizedClinicalFingerprint &&
+    clinicalFingerprint(p)!==p.summaryFinalizedClinicalFingerprint;
+}
+function summaryChangedAfterFinalize(p){
+  return !!p.summaryFinalizedAt&&(fSummary.value||"").trim()!==(p.summaryFinalizedText||"").trim();
+}
+function undoFinalize(){
+  const p=patient();
+  if(!p||!p.summaryFinalizedAt)return;
+  if(isClosed(p)){
+    alert("Reopen the case before undoing Finalize.");
+    return;
+  }
+
+  const ok=confirm(
+    "Undo Finalize?\n\nThe finalized gold reference for this case will be deleted from style learning. The current Summary text will remain editable."
+  );
+  if(!ok)return;
+
+  state.references=(state.references||[]).filter(r=>!(
+    r.source==="finalized_summary" &&
+    r.patientId===p.id &&
+    r.shiftId===p.shiftId
+  ));
+
+  p.summaryFinalizedText="";
+  p.summaryFinalizedAt=null;
+  p.summaryFinalizedClinicalFingerprint=null;
+  p.updatedAt=nowIso();
+
+  rebuildStyleProfile();
+  persist();
+  renderApp();
+  flash("Finalize undone. Gold reference deleted and style memory rebuilt.");
+}
+function closeCase(){
+  const p=collect();
+  if(!p)return;
+  if(!p.summaryFinalizedAt)return alert("Finalize Summary before closing the case.");
+  if(summaryChangedAfterFinalize(p))return alert("Summary was edited after Finalize. Finalize it again before Close Case.");
+  if(clinicalChangedAfterFinalize(p))return alert("Clinical data changed after Finalize. Generate/update the Summary and Finalize again before Close Case.");
+  p.caseStatus="closed";
+  p.closedAt=nowIso();
+  p.updatedAt=nowIso();
+  persist();
+  renderApp();
+  flash("Case closed.");
+}
+function reopenCase(){
+  const p=patient();
+  if(!p)return;
+  p.caseStatus="active";
+  p.closedAt=null;
+  p.reopenedAt=nowIso();
+  p.reopenCount=(p.reopenCount||0)+1;
+  p.updatedAt=nowIso();
+  persist();
+  renderApp();
+  flash("Case reopened — ACTIVE / IN PROGRESS.");
+}
+function renderCaseActions(p){
+  const changed=summaryChangedAfterFinalize(p)||clinicalChangedAfterFinalize(p);
+  undoFinalizeBtn.classList.toggle("hidden",isClosed(p)||!p.summaryFinalizedAt);
+  closeCaseBtn.classList.toggle("hidden",isClosed(p)||!p.summaryFinalizedAt||changed);
+  reopenCaseBtn.classList.toggle("hidden",!isClosed(p));
+}
+function applyCaseLock(p){
+  const closed=isClosed(p);
+  if(closed){
+    patientForm.querySelectorAll("input,textarea,select,button").forEach(el=>{
+      if(el.id==="reopenCaseBtn"){el.disabled=false;return;}
+      el.disabled=true;
+    });
+    return;
+  }
+
+  patientForm.querySelectorAll("input,textarea,select,button").forEach(el=>{
+    if(!el.closest(".test-card"))el.disabled=false;
+  });
+
+  // Re-render test controls so Waiting / Not ordered / Result disabled
+  // states remain correct after a case is reopened.
+  renderTests(p);
+}
+function renderSummaryStatus(p){
+  const t=fSummary.value||"";
+  if(isClosed(p)){
+    summaryStatus.innerHTML=`<span class="badge closed">CASE CLOSED</span> <span class="subtle">Closed ${fmtTime(p.closedAt)}. Reopen to edit.</span>`;
+    renderCaseActions(p);
+    return;
+  }
+  if(!p.summaryFinalizedAt){
+    summaryStatus.innerHTML='<span class="badge active">NOT FINALIZED</span> <span class="subtle">Case is still ACTIVE / IN PROGRESS.</span>';
+    renderCaseActions(p);
+    return;
+  }
+  const changed=t.trim()!==p.summaryFinalizedText.trim();
+  const clinicalChanged=clinicalChangedAfterFinalize(p);
+  summaryStatus.innerHTML=clinicalChanged
+    ?'<span class="badge active">CLINICAL DATA CHANGED</span> <span class="subtle">Update/Generate Summary and Finalize again before Close Case.</span>'
+    :changed
+    ?'<span class="badge active">EDITED AFTER FINALIZE</span> <span class="subtle">Finalize again before Close Case.</span>'
+    :`<span class="badge done">FINALIZED</span> <span class="subtle">Saved ${fmtTime(p.summaryFinalizedAt)} • ready to Close Case.</span>`;
+  renderCaseActions(p);
+}
+function startShift(){if(state.shift)return;state.shift={id:crypto.randomUUID(),startedAt:nowIso(),status:"active"};selectedPatientId=null;persist();renderApp()}
+function modal(x){modalHost.innerHTML=`<div class="modal-wrap"><div class="modal">${x}</div></div>`;modalHost.querySelectorAll("[data-close]").forEach(x=>x.onclick=()=>modalHost.innerHTML="")}
+function endShiftStep1(){const p=pts(),a=p.filter(x=>!completed(x)).length;modal(`<h3>End current shift?</h3><p>Patients: <b>${p.length}</b><br>Still active: <b>${a}</b></p><div class="modal-actions"><button class="btn" data-close>CANCEL</button><button class="btn danger" id="endContinue">CONTINUE</button></div>`);endContinue.onclick=endShiftStep2}
+function endShiftStep2(){modal(`<h3>Confirm end shift</h3><p>Type <b>END</b> to confirm.</p><input id="endInput" placeholder="END"><div class="modal-actions"><button class="btn" data-close>CANCEL</button><button class="btn danger" id="endFinal" disabled>END SHIFT</button></div>`);endInput.oninput=()=>endFinal.disabled=endInput.value!=="END";endFinal.onclick=()=>{state.shift=null;selectedPatientId=null;persist();modalHost.innerHTML="";renderApp()}}
+function flash(msg){const e=document.createElement("div");e.textContent=msg;e.style.cssText="position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:11px 14px;border-radius:9px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.2)";document.body.appendChild(e);setTimeout(()=>e.remove(),1800)}
+langEnBtn.onclick=()=>applyLanguage("en");
+langHuBtn.onclick=()=>applyLanguage("hu");
+if(document.getElementById("testApiBtn"))document.getElementById("testApiBtn").onclick=testBackendApi;
+startShiftBtn.onclick=startShift;
+addPatientBtn.onclick=addPatient;
+[newSex,newYob,newComplaint].forEach(el=>el.addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"&&newSex.value&&newYob.value.trim()&&newComplaint.value.trim()){
+    ev.preventDefault();
+    addPatient();
+  }
+}));
+newYob.addEventListener("blur",()=>{if(newYob.value.trim())newYob.value=normalizeYob(newYob.value)});
+savePatientBtn.onclick=savePatient;fDisposition.onchange=dispositionUI;addRecBtn.onclick=addRec;addLabBtn.onclick=addLab;addRadiologyBtn.onclick=addRadiology;addConsultBtn.onclick=addConsult;generateSummaryBtn.onclick=generateSummary;if(document.getElementById("previewBackendBtn"))document.getElementById("previewBackendBtn").onclick=previewBackendFlow;finalizeSummaryBtn.onclick=finalizeSummary;undoFinalizeBtn.onclick=undoFinalize;closeCaseBtn.onclick=closeCase;reopenCaseBtn.onclick=reopenCase;fSummary.oninput=()=>patient()&&renderSummaryStatus(patient());renderApp();
+applyLanguage(uiLang);
+</script>
+</body>
+</html>
