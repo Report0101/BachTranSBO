@@ -2,25 +2,29 @@ let state = defaultState();
 let selectedPatientId = null;
 let backendReady = false;
 let currentUser = null;
-let persistTimer = null;
+let stateDirty = false;
 
 function defaultState() {
   return { shift: null, patients: [], references: [] };
 }
 
 function persist() {
-  if (!backendReady || !state.shift) return;
-  clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistNow().catch(handleBackendError);
-  }, 350);
+  // Privacy-aware backend writes are intentionally explicit rather than
+  // running on every keystroke. This only marks the in-memory state dirty.
+  stateDirty = true;
 }
 
 async function persistNow() {
-  if (!backendReady || !state.shift) return;
-  clearTimeout(persistTimer);
-  persistTimer = null;
-  await window.BachSBOBackend.saveState(state);
+  if (!backendReady || !state.shift) return { removed: 0, report: null };
+
+  const result = await window.BachSBOBackend.saveState(state);
+  stateDirty = false;
+
+  if (result?.removed > 0) {
+    flash(`Privacy filter removed ${result.removed} identifier(s).`);
+  }
+
+  return result;
 }
 
 function handleBackendError(error) {
@@ -206,7 +210,7 @@ function updateStatusCell(patient) {
     : '<span class="wait-none">—</span>';
 }
 
-function addPatient() {
+async function addPatient() {
   if (!state.shift) return;
 
   const sex = document.getElementById("newSex").value;
@@ -263,6 +267,12 @@ function addPatient() {
   document.getElementById("newSex").value = "";
   document.getElementById("newYob").value = "";
   document.getElementById("newComplaint").value = "";
+
+  try {
+    await persistNow();
+  } catch (error) {
+    handleBackendError(error);
+  }
 
   renderApp();
 }
@@ -712,7 +722,7 @@ function buildMockSummary(patient) {
   return out.join("\n");
 }
 
-function generateSummary() {
+async function generateSummary() {
   const patient = collectForm();
   if (!patient) return;
 
@@ -724,7 +734,13 @@ function generateSummary() {
 
   document.getElementById("fSummary").value = patient.summary;
   renderSummaryStatus(patient);
-  flash("Summary generated (mock backend skill).");
+
+  try {
+    await persistNow();
+    flash("Summary generated (mock backend skill).");
+  } catch (error) {
+    handleBackendError(error);
+  }
 }
 
 async function finalizeSummary() {
@@ -744,7 +760,13 @@ async function finalizeSummary() {
 
   try {
     await persistNow();
-    await window.BachSBOBackend.appendSummaryRevision(patient);
+    const revisionResult =
+      await window.BachSBOBackend.appendSummaryRevision(patient);
+    if (revisionResult?.removed > 0) {
+      flash(
+        `Privacy filter removed ${revisionResult.removed} identifier(s) from finalized corpus.`
+      );
+    }
   } catch (error) {
     handleBackendError(error);
     return;
@@ -876,8 +898,8 @@ function showSetupRequired() {
   modal(`
     <h3>Backend setup required</h3>
     <p>This branch uses Supabase instead of browser clinical-data storage.</p>
-    <p>Configure <code>config.js</code> and run <code>supabase/migrations/001_backend_v1.sql</code>.</p>
-    <p class="subtle">See docs/BACKEND_SETUP.md.</p>
+    <p>Configure <code>config.js</code>, apply both Supabase migrations, deploy <code>clinical-store</code>, and set its AI privacy secret.</p>
+    <p class="subtle">See docs/BACKEND_SETUP.md and docs/PRIVACY.md.</p>
   `);
 }
 
