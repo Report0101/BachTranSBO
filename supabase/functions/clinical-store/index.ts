@@ -193,13 +193,18 @@ function corpusSnapshot(patient: any) {
     age,
     main_complaint: patient.mainComplaint || "",
     complaint: patient.complaint || "",
+    complaint_status: patient.complaintSkipped ? "none" : "provided",
     history: patient.history || "",
+    history_status: patient.historySkipped ? "none" : "provided",
     physical_examination: patient.physical || "",
+    physical_examination_status: patient.physicalSkipped ? "none" : "provided",
     diagnoses: patient.diagnoses || "",
     tests,
     others: patient.others || "",
     therapy: patient.therapy || "",
+    therapy_skipped: Boolean(patient.therapySkipped),
     clinical_course: patient.course || "",
+    clinical_course_skipped: Boolean(patient.courseSkipped),
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [],
     admission: {
@@ -276,12 +281,17 @@ async function saveState(db: any, ownerId: string, inputState: any) {
       year_of_birth: p.yob ? Number(p.yob) : null,
       main_complaint: p.mainComplaint || "",
       complaint: p.complaint || "",
+      complaint_skipped: Boolean(p.complaintSkipped),
       history: p.history || "",
+      history_skipped: Boolean(p.historySkipped),
       physical_exam: p.physical || "",
+      physical_exam_skipped: Boolean(p.physicalSkipped),
       diagnoses: p.diagnoses || "",
       others: p.others || "",
       therapy: p.therapy || "",
+      therapy_skipped: Boolean(p.therapySkipped),
       clinical_course: p.course || "",
+      clinical_course_skipped: Boolean(p.courseSkipped),
       disposition: p.disposition || "",
       recommendations: p.recommendations || [""],
       hospital: p.hospital || "",
@@ -371,12 +381,17 @@ async function savePatient(
       year_of_birth: patient.yob ? Number(patient.yob) : null,
       main_complaint: patient.mainComplaint || "",
       complaint: patient.complaint || "",
+      complaint_skipped: Boolean(patient.complaintSkipped),
       history: patient.history || "",
+      history_skipped: Boolean(patient.historySkipped),
       physical_exam: patient.physical || "",
+      physical_exam_skipped: Boolean(patient.physicalSkipped),
       diagnoses: patient.diagnoses || "",
       others: patient.others || "",
       therapy: patient.therapy || "",
+      therapy_skipped: Boolean(patient.therapySkipped),
       clinical_course: patient.course || "",
+      clinical_course_skipped: Boolean(patient.courseSkipped),
       disposition: patient.disposition || "",
       recommendations: patient.recommendations || [""],
       hospital: patient.hospital || "",
@@ -456,12 +471,17 @@ async function finalizePatient(
     year_of_birth: patient.yob ? Number(patient.yob) : null,
     main_complaint: patient.mainComplaint || "",
     complaint: patient.complaint || "",
+    complaint_skipped: Boolean(patient.complaintSkipped),
     history: patient.history || "",
+    history_skipped: Boolean(patient.historySkipped),
     physical_exam: patient.physical || "",
+    physical_exam_skipped: Boolean(patient.physicalSkipped),
     diagnoses: patient.diagnoses || "",
     others: patient.others || "",
     therapy: patient.therapy || "",
+    therapy_status: patient.therapySkipped ? "none" : "provided",
     clinical_course: patient.course || "",
+    clinical_course_status: patient.courseSkipped ? "none" : "provided",
     disposition: patient.disposition || "",
     recommendations: patient.recommendations || [""],
     hospital: patient.hospital || "",
@@ -536,6 +556,59 @@ async function finalizePatient(
     revisionId,
     embedded: !embeddingWarning,
     embeddingWarning,
+  };
+}
+
+async function reopenCase(
+  db: any,
+  ownerId: string,
+  shiftId: string,
+  caseId: string,
+) {
+  if (!shiftId || !caseId) throw new Error("Case reopen payload is incomplete.");
+
+  const { data: existing, error: caseError } = await db
+    .from("cases")
+    .select("id, shift_id, status")
+    .eq("id", caseId)
+    .eq("shift_id", shiftId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (caseError) throw caseError;
+  if (!existing) throw new Error("Case does not belong to the active shift.");
+  if (existing.status !== "completed") {
+    throw new Error("Only a completed case can be reopened.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: reopenError } = await db
+    .from("cases")
+    .update({
+      status: "active",
+      completed_at: null,
+      updated_at: now,
+    })
+    .eq("id", caseId)
+    .eq("owner_id", ownerId);
+
+  if (reopenError) throw reopenError;
+
+  const { error: summaryError } = await db
+    .from("summaries")
+    .update({
+      finalized_at: null,
+      updated_at: now,
+    })
+    .eq("case_id", caseId)
+    .eq("owner_id", ownerId);
+
+  if (summaryError) throw summaryError;
+
+  return {
+    caseId,
+    reopenedAt: now,
   };
 }
 
@@ -644,6 +717,17 @@ Deno.serve(async (req) => {
           user.id,
           String(body.shiftId || ""),
           body.patient,
+        ),
+      );
+    }
+
+    if (body?.action === "reopen_case") {
+      return json(
+        await reopenCase(
+          db,
+          user.id,
+          String(body.shiftId || ""),
+          String(body.caseId || ""),
         ),
       );
     }
