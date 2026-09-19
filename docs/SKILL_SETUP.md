@@ -1,6 +1,6 @@
 # SBO Documentation Skill backend setup
 
-The operational browser does not contain or edit the master documentation Skill.
+The operational browser does not contain, fetch, or edit the master documentation Skill. Browser sessions have no SELECT grant on `skill_versions`; server-side functions return only safe metadata such as Skill name/version.
 
 The active Skill is stored in `skill_versions` and loaded only by the server-side `generate-summary` Edge Function.
 
