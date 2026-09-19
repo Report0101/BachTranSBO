@@ -10,7 +10,7 @@ Personal emergency-department command center for one active shift at a time, wit
 - Authentication: personal email magic-link / OTP.
 - Privacy gate: permanent clinical writes go through the `clinical-store` Edge Function.
 - De-identification: deterministic Hungarian-aware rules plus a fail-closed AI person-name/missed-identifier pass.
-- AI summary: the current **Generate Summary** button still uses deterministic mock generation; live GPT/SBO Documentation Skill integration is the next milestone.
+- AI summary: **Generate Summary** now calls the server-side `generate-summary` Edge Function, which reads the de-identified case, active SBO Documentation Skill version, optional style profile, and calls GPT.
 
 See `docs/BACKEND_SETUP.md` for setup.
 
@@ -54,7 +54,7 @@ This allows future retrieval/style learning to compare what the model generated 
 
 BachTranSBO does not intentionally model patient name, TAJ, full date of birth, address, phone, or email.
 
-Free-text copied from another system may still accidentally contain identifiers. A dedicated automatic de-identification layer is the next required milestone before this branch should be used as a permanent real-world clinical corpus.
+Free-text copied from another system may still accidentally contain identifiers. Permanent clinical writes now pass through an automatic de-identification layer before they reach the corpus.
 
 The target behavior is:
 
@@ -91,16 +91,18 @@ docs/
 ## Backend setup
 
 1. Create a Supabase project.
-2. Run `supabase/migrations/001_backend_v1.sql`.
+2. Apply migrations `001_backend_v1.sql`, `002_privacy_hardening.sql`, and `003_ai_summary.sql` in order.
 3. Put the project URL and **publishable key** in `config.js`.
-4. Configure the GitHub Pages URL as an Auth redirect URL.
-5. Sign in with your personal email account.
+4. Configure Auth and the GitHub Pages redirect URL.
+5. Set `OPENAI_API_KEY`, `DEID_MODEL`, and `SUMMARY_MODEL` as Supabase secrets.
+6. Deploy `clinical-store` and `generate-summary`.
+7. Insert the exact approved SBO Documentation Skill text as active Skill version 1.
 
 Never place a Supabase secret/service-role key in browser code.
 
 ## Next milestones
 
-1. Server-side `generate-summary` Edge Function.
-2. SBO Documentation Skill + versioning.
-3. Similar-case retrieval with embeddings/pgvector.
-4. AI learning dashboard and Skill-change suggestions.
+1. Similar-case retrieval with embeddings/pgvector.
+2. Automatic writing-style profile generation from finalized revisions.
+3. AI learning dashboard and Skill-change suggestions.
+4. End-to-end deployment/testing against the real Supabase project.
